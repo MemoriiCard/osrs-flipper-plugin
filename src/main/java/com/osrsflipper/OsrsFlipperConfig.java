@@ -4,6 +4,7 @@ import java.awt.event.KeyEvent;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
+import com.osrsflipper.ui.Theme;
 import net.runelite.client.config.ConfigSection;
 import net.runelite.client.config.Keybind;
 import net.runelite.client.config.Notification;
@@ -62,6 +63,17 @@ public interface OsrsFlipperConfig extends Config
 		closedByDefault = true
 	)
 	String connectionSection = "connection";
+
+	@ConfigItem(
+		keyName = "theme",
+		name = "Theme",
+		description = "Colours for the side panel, price chart and in-game highlights. Every theme is dark.",
+		position = -2
+	)
+	default Theme theme()
+	{
+		return Theme.GRAND_EXCHANGE;
+	}
 
 	@ConfigItem(
 		keyName = "viewMode",

@@ -80,7 +80,7 @@ public class OsrsFlipperPlugin extends Plugin
 {
 	/** Ticks after login during which RuneLite's EMPTY slot events are not trusted. */
 	private static final int LOGIN_BURST_TICKS = 2;
-	static final String VERSION = "0.3.0";
+	static final String VERSION = "0.4.0";
 	private static final long HELLO_MILLIS = 5 * 60_000;
 	private static final long SYNC_MILLIS = 30_000;
 	private static final long USAGE_MILLIS = 10 * 60_000;
@@ -173,6 +173,7 @@ public class OsrsFlipperPlugin extends Plugin
 		store = new TradeStore(gson, dir);
 		panel = new FlipperPanel(new Actions());
 		panel.setAdvanced(config.viewMode() == OsrsFlipperConfig.ViewMode.ADVANCED);
+		panel.setTheme(config.theme());
 		auth.start(new TokenFile(gson, dir), config::apiUrl, () -> clientThread.invokeLater(this::onAuthChanged));
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "nav_icon.png");
 		navButton = NavigationButton.builder()
@@ -344,6 +345,10 @@ public class OsrsFlipperPlugin extends Plugin
 	{
 		if (OsrsFlipperConfig.GROUP.equals(event.getGroup()))
 		{
+			if ("theme".equals(event.getKey()))
+			{
+				SwingUtilities.invokeLater(() -> panel.setTheme(config.theme()));
+			}
 			clientThread.invokeLater(() ->
 			{
 				panel.setAdvanced(config.viewMode() == OsrsFlipperConfig.ViewMode.ADVANCED);
