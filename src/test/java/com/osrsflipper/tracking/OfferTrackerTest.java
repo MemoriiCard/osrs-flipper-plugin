@@ -79,4 +79,20 @@ public class OfferTrackerTest
 		tracker.update(buy(400, 2000, OfferStatus.BUYING), "Fire rune", 1, true);
 		assertNull(tracker.update(buy(400, 2000, OfferStatus.CANCELLED_BUY), "Fire rune", 2, true));
 	}
+
+	@Test
+	public void activityTimeMovesOnlyWhenTheOfferFills()
+	{
+		OfferTracker tracker = new OfferTracker();
+		tracker.update(buy(0, 0, OfferStatus.BUYING), "Fire rune", 1_000, true);
+		tracker.update(buy(0, 0, OfferStatus.BUYING), "Fire rune", 5_000, true);
+		assertEquals(1_000, tracker.getSlots().get(0).lastActivityMillis);
+
+		tracker.update(buy(100, 500, OfferStatus.BUYING), "Fire rune", 9_000, true);
+		assertEquals(9_000, tracker.getSlots().get(0).lastActivityMillis);
+
+		// A new offer in the same slot starts its own clock.
+		tracker.update(new OfferSnapshot(0, ITEM, OfferStatus.SELLING, 9, 100, 0, 0), "Fire rune", 12_000, true);
+		assertEquals(12_000, tracker.getSlots().get(0).lastActivityMillis);
+	}
 }

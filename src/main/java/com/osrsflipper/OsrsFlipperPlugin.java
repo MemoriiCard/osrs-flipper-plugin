@@ -257,7 +257,7 @@ public class OsrsFlipperPlugin extends Plugin
 		Map<Integer, Integer> holdings = trades == null
 			? Collections.emptyMap()
 			: trades.getMatcher().getHoldings();
-		suggestions.tick(holdings);
+		suggestions.tick(holdings, trades == null ? Collections.emptyMap() : trades.getSlots());
 
 		long now = System.currentTimeMillis();
 		if (auth.getState() == AuthState.SIGNED_IN && trades != null)
