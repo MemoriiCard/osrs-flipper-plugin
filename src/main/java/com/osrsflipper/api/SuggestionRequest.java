@@ -61,5 +61,8 @@ public class SuggestionRequest
 		@SerializedName("filled_quantity")
 		public int filledQuantity;
 		public boolean active;
+		/** Minutes since the offer was placed or last filled; null when the plugin didn't see it placed. */
+		@SerializedName("idle_minutes")
+		public Integer idleMinutes;
 	}
 }

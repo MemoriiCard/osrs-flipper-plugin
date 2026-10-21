@@ -116,6 +116,12 @@ public class FlipperApiClient
 			prices -> onSuccess.accept(prices == null ? java.util.Collections.emptyList() : Arrays.asList(prices)), onError);
 	}
 
+	/** @param period day, week or month */
+	public void priceHistory(int itemId, String period, Consumer<PriceHistory> onSuccess, Consumer<String> onError)
+	{
+		get("/v1/prices/" + itemId + "/history?period=" + period, PriceHistory.class, onSuccess, onError);
+	}
+
 	private <T> void post(String path, Object body, Class<T> type, Consumer<T> onSuccess, Consumer<String> onError)
 	{
 		auth.send(path, gson.toJson(body), response -> read(response, type, onSuccess, onError), onError);

@@ -2,6 +2,7 @@ package com.osrsflipper.tracking;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -57,6 +58,12 @@ public class AccountTrades
 	public List<Transaction> getTransactions()
 	{
 		return transactions;
+	}
+
+	/** The last known state of each GE slot, by slot. */
+	public Map<Integer, OfferSnapshot> getSlots()
+	{
+		return tracker.getSlots();
 	}
 
 	public FlipMatcher getMatcher()

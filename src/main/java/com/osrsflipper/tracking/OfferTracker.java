@@ -39,13 +39,17 @@ public class OfferTracker
 
 		int filledBefore = 0;
 		long spentBefore = 0;
-		if (previous != null && previous.isSameOfferAs(snapshot))
+		boolean same = previous != null && previous.isSameOfferAs(snapshot);
+		if (same)
 		{
 			filledBefore = previous.quantityFilled;
 			spentBefore = previous.spent;
 		}
 
 		int quantity = snapshot.quantityFilled - filledBefore;
+		snapshot.lastActivityMillis = same && quantity <= 0 && previous.lastActivityMillis > 0
+			? previous.lastActivityMillis
+			: nowMillis;
 		long coins = snapshot.spent - spentBefore;
 		if (quantity <= 0)
 		{

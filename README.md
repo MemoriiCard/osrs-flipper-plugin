@@ -14,6 +14,9 @@ offer, and tracks your profit.
   the GE prompt. You still press every key and click every button.
 - **Dump alerts (premium).** A notification when an item is sold far below its usual price, with the
   buy price, quantity and expected profit. "Use" makes it the current suggestion.
+- **Stale offer repricing.** An offer that sits longer than your check-in window at a price the market
+  has left gets flagged, with the price to rebuy or relist at.
+- **Price chart.** Day, week and month charts of the item you're setting up or the suggested item.
 - **Offer slot colours.** Active offers are outlined green while their price still fills and red once
   the market has moved past it.
 - **Mis-click guard.** If a price looks like a typo (far from the market or the suggestion), Confirm

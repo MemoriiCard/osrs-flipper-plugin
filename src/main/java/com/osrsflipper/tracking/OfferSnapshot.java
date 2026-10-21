@@ -13,6 +13,8 @@ public class OfferSnapshot
 	public int quantityFilled;
 	/** Total coins spent (buy) or received before tax (sell) so far. */
 	public long spent;
+	/** When the offer was placed or last filled. Set by {@link OfferTracker}. */
+	public long lastActivityMillis;
 
 	public OfferSnapshot()
 	{

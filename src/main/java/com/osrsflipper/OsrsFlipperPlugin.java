@@ -12,6 +12,7 @@ import com.osrsflipper.ge.GrandExchangeWidgets;
 import com.osrsflipper.market.AlertController;
 import com.osrsflipper.market.ConfirmGuard;
 import com.osrsflipper.market.GuardState;
+import com.osrsflipper.market.ChartController;
 import com.osrsflipper.market.PriceCache;
 import com.osrsflipper.ge.OfferHotkeys;
 import com.osrsflipper.suggestion.SuggestionController;
@@ -79,7 +80,7 @@ public class OsrsFlipperPlugin extends Plugin
 {
 	/** Ticks after login during which RuneLite's EMPTY slot events are not trusted. */
 	private static final int LOGIN_BURST_TICKS = 2;
-	static final String VERSION = "0.2.0";
+	static final String VERSION = "0.3.0";
 	private static final long HELLO_MILLIS = 5 * 60_000;
 	private static final long SYNC_MILLIS = 30_000;
 	private static final long USAGE_MILLIS = 10 * 60_000;
@@ -145,6 +146,7 @@ public class OsrsFlipperPlugin extends Plugin
 	private Notifier notifier;
 
 	private FlipperPanel panel;
+	private ChartController chart;
 	private NavigationButton navButton;
 	private TradeStore store;
 
@@ -183,6 +185,8 @@ public class OsrsFlipperPlugin extends Plugin
 		sessionStartMillis = System.currentTimeMillis();
 
 		suggestions.setOnChange(this::updateSuggestionPanel);
+		chart = new ChartController(api, clientThread::invokeLater);
+		chart.setOnChange(this::updateChartPanel);
 		overlayManager.add(highlightOverlay);
 		keyManager.registerKeyListener(hotkeys);
 
@@ -257,7 +261,7 @@ public class OsrsFlipperPlugin extends Plugin
 		Map<Integer, Integer> holdings = trades == null
 			? Collections.emptyMap()
 			: trades.getMatcher().getHoldings();
-		suggestions.tick(holdings);
+		suggestions.tick(holdings, trades == null ? Collections.emptyMap() : trades.getSlots());
 
 		long now = System.currentTimeMillis();
 		if (auth.getState() == AuthState.SIGNED_IN && trades != null)
@@ -274,11 +278,16 @@ public class OsrsFlipperPlugin extends Plugin
 		if (auth.getState() == AuthState.SIGNED_IN && client.getGameState() == GameState.LOGGED_IN)
 		{
 			prices.want(pricedItems());
+			chart.tick(config.priceChart() ? chartItem() : null, now);
 			if (config.dumpAlerts() && me != null && me.accountPremium() && accountHash != -1)
 			{
 				alerts.poll(accountHash, coins(), config.minProfit(), config.f2pOnly(),
 					client.getWorldType().contains(WorldType.MEMBERS), this::onNewAlert, this::updateAlertPanel);
 			}
+		}
+		else
+		{
+			chart.tick(null, now);
 		}
 		updateGuard();
 		if (now - lastUsageMillis >= USAGE_MILLIS)
@@ -486,6 +495,26 @@ public class OsrsFlipperPlugin extends Plugin
 			ids.add(current.itemId);
 		}
 		return ids;
+	}
+
+	/** The item being set up in the GE, otherwise the suggested item. */
+	private Integer chartItem()
+	{
+		if (ge.isSetupOpen() && ge.setupItemId() > 0)
+		{
+			return ge.setupItemId();
+		}
+		Suggestion current = suggestions.getCurrent();
+		return current == null ? null : current.itemId;
+	}
+
+	/** Client thread. */
+	private void updateChartPanel()
+	{
+		final com.osrsflipper.api.PriceHistory history = chart.getHistory();
+		final String period = chart.getPeriod();
+		final String error = chart.getError();
+		SwingUtilities.invokeLater(() -> panel.showChart(history, period, error));
 	}
 
 	/** Client thread. Works out whether the offer being set up looks like a typo. */
@@ -731,6 +760,13 @@ public class OsrsFlipperPlugin extends Plugin
 				alerts.dismiss(alertId);
 				updateAlertPanel();
 			});
+		}
+
+		@Override
+		public void chartPeriod(String period)
+		{
+			usage.add("panel.chart_" + period);
+			clientThread.invokeLater(() -> chart.setPeriod(period));
 		}
 
 		@Override

@@ -6,6 +6,7 @@ import com.osrsflipper.api.Suggestion;
 import com.osrsflipper.api.SuggestionRequest;
 import com.osrsflipper.auth.AuthSession;
 import com.osrsflipper.auth.AuthState;
+import com.osrsflipper.tracking.OfferSnapshot;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -110,8 +111,9 @@ public class SuggestionController
 	 * Call every game tick.
 	 *
 	 * @param holdings tracked buys not yet sold, by item ID
+	 * @param slots    the last tracked state of each GE slot, for how long offers have sat
 	 */
-	public void tick(Map<Integer, Integer> holdings)
+	public void tick(Map<Integer, Integer> holdings, Map<Integer, OfferSnapshot> slots)
 	{
 		if (!config.suggestionsEnabled())
 		{
@@ -149,7 +151,7 @@ public class SuggestionController
 			return;
 		}
 
-		SuggestionRequest request = RequestBuilder.build(settings(), offers(), inventory(), holdings,
+		SuggestionRequest request = RequestBuilder.build(settings(), offers(slots, now), inventory(), holdings,
 			client.getWorldType().contains(WorldType.MEMBERS), skips.active(now));
 		request.accountHash = Long.toString(client.getAccountHash());
 		Player player = client.getLocalPlayer();
@@ -243,7 +245,7 @@ public class SuggestionController
 		return s;
 	}
 
-	private List<SuggestionRequest.Offer> offers()
+	private List<SuggestionRequest.Offer> offers(Map<Integer, OfferSnapshot> tracked, long now)
 	{
 		List<SuggestionRequest.Offer> offers = new ArrayList<>();
 		GrandExchangeOffer[] slots = client.getGrandExchangeOffers();
@@ -264,6 +266,11 @@ public class SuggestionController
 			o.totalQuantity = Math.max(1, offer.getTotalQuantity());
 			o.filledQuantity = offer.getQuantitySold();
 			o.active = state == GrandExchangeOfferState.BUYING || state == GrandExchangeOfferState.SELLING;
+			OfferSnapshot seen = tracked.get(i);
+			if (seen != null && seen.itemId == o.itemId && seen.price == o.price && seen.lastActivityMillis > 0)
+			{
+				o.idleMinutes = (int) Math.max(0, (now - seen.lastActivityMillis) / 60_000);
+			}
 			offers.add(o);
 		}
 		return offers;
