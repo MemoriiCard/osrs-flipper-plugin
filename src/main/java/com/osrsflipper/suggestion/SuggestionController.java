@@ -4,6 +4,8 @@ import com.osrsflipper.OsrsFlipperConfig;
 import com.osrsflipper.api.FlipperApiClient;
 import com.osrsflipper.api.Suggestion;
 import com.osrsflipper.api.SuggestionRequest;
+import com.osrsflipper.auth.AuthSession;
+import com.osrsflipper.auth.AuthState;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -19,6 +21,7 @@ import net.runelite.api.GrandExchangeOffer;
 import net.runelite.api.GrandExchangeOfferState;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
+import net.runelite.api.Player;
 import net.runelite.api.WorldType;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.client.callback.ClientThread;
@@ -41,6 +44,7 @@ public class SuggestionController
 	private final ItemManager itemManager;
 	private final OsrsFlipperConfig config;
 	private final FlipperApiClient api;
+	private final AuthSession auth;
 	private final SkipList skips = new SkipList();
 
 	@Getter
@@ -58,8 +62,9 @@ public class SuggestionController
 
 	@Inject
 	public SuggestionController(Client client, ClientThread clientThread, ItemManager itemManager,
-		OsrsFlipperConfig config, FlipperApiClient api)
+		OsrsFlipperConfig config, FlipperApiClient api, AuthSession auth)
 	{
+		this.auth = auth;
 		this.client = client;
 		this.clientThread = clientThread;
 		this.itemManager = itemManager;
@@ -88,6 +93,7 @@ public class SuggestionController
 	{
 		if (current != null && current.itemId != null)
 		{
+			api.feedback(current.suggestionId, "skipped", null);
 			skips.skip(current.itemId, System.currentTimeMillis());
 			current = null;
 			dirty = true;
@@ -116,6 +122,16 @@ public class SuggestionController
 		{
 			return;
 		}
+		if (auth.getState() != AuthState.SIGNED_IN)
+		{
+			if (current != null || error == null)
+			{
+				current = null;
+				error = "Sign in from the side panel to get suggestions.";
+				onChange.run();
+			}
+			return;
+		}
 		long now = System.currentTimeMillis();
 		boolean due = dirty ? now - lastRequestMillis >= MIN_GAP_MILLIS : now - lastRequestMillis >= REFRESH_MILLIS;
 		if (!due)
@@ -125,11 +141,15 @@ public class SuggestionController
 
 		SuggestionRequest request = RequestBuilder.build(settings(), offers(), inventory(), holdings,
 			client.getWorldType().contains(WorldType.MEMBERS), skips.active(now));
+		request.accountHash = Long.toString(client.getAccountHash());
+		Player player = client.getLocalPlayer();
+		request.displayName = player == null || player.getName() == null ? "" : player.getName();
+		request.profile.allowSharedItems = config.allowSharedItems();
 		dirty = false;
 		inFlight = true;
 		lastRequestMillis = now;
 		final int requestGeneration = generation;
-		api.suggest(config.apiUrl(), request,
+		api.suggest(request,
 			suggestion -> clientThread.invokeLater(() -> finish(requestGeneration, suggestion, null)),
 			message -> clientThread.invokeLater(() -> finish(requestGeneration, null, message)));
 	}
@@ -152,6 +172,15 @@ public class SuggestionController
 			error = message;
 		}
 		onChange.run();
+	}
+
+	/** Thumbs up (1) or down (-1) on the current suggestion. */
+	public void rate(int rating)
+	{
+		if (current != null)
+		{
+			api.feedback(current.suggestionId, null, rating);
+		}
 	}
 
 	private RequestBuilder.Settings settings()

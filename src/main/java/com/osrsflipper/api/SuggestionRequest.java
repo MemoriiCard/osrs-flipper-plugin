@@ -12,6 +12,11 @@ public class SuggestionRequest
 {
 	public Profile profile = new Profile();
 	public Account account = new Account();
+	/** RuneLite's account hash, as a string so no precision is lost. */
+	@SerializedName("account_hash")
+	public String accountHash;
+	@SerializedName("display_name")
+	public String displayName;
 
 	public static class Profile
 	{
@@ -24,6 +29,8 @@ public class SuggestionRequest
 		public List<Integer> blockedItemIds = new ArrayList<>();
 		@SerializedName("min_profit_per_flip")
 		public long minProfitPerFlip;
+		@SerializedName("allow_shared_items")
+		public boolean allowSharedItems;
 	}
 
 	public static class Account

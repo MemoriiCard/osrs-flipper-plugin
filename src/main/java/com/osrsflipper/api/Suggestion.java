@@ -22,6 +22,11 @@ public class Suggestion
 	public Integer slot;
 	@SerializedName("expected_profit")
 	public Long expectedProfit;
+	/** Sent back with feedback. */
+	@SerializedName("suggestion_id")
+	public String suggestionId;
+	/** False when the suggestion came from the free item pool. */
+	public boolean premium;
 
 	public boolean is(String type)
 	{

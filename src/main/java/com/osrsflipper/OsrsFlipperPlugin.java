@@ -2,15 +2,24 @@ package com.osrsflipper;
 
 import com.google.gson.Gson;
 import com.google.inject.Provides;
+import com.osrsflipper.api.FlipperApiClient;
+import com.osrsflipper.api.Me;
 import com.osrsflipper.api.Suggestion;
+import com.osrsflipper.auth.AuthSession;
+import com.osrsflipper.auth.AuthState;
+import com.osrsflipper.auth.TokenFile;
 import com.osrsflipper.ge.OfferHotkeys;
 import com.osrsflipper.suggestion.SuggestionController;
+import com.osrsflipper.sync.TradeSync;
+import com.osrsflipper.sync.UsageCounter;
 import com.osrsflipper.tracking.AccountTrades;
 import com.osrsflipper.tracking.Flip;
 import com.osrsflipper.tracking.OfferSnapshot;
 import com.osrsflipper.tracking.OfferStatus;
 import com.osrsflipper.tracking.TradeStore;
+import com.osrsflipper.tracking.Transaction;
 import com.osrsflipper.ui.FlipperPanel;
+import com.osrsflipper.ui.PanelActions;
 import com.osrsflipper.ui.HighlightOverlay;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -27,6 +36,7 @@ import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.GrandExchangeOffer;
 import net.runelite.api.GrandExchangeOfferState;
+import net.runelite.api.Player;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.GrandExchangeOfferChanged;
@@ -45,6 +55,7 @@ import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.ImageUtil;
+import net.runelite.client.util.LinkBrowser;
 
 @Slf4j
 @PluginDescriptor(
@@ -56,6 +67,10 @@ public class OsrsFlipperPlugin extends Plugin
 {
 	/** Ticks after login during which RuneLite's EMPTY slot events are not trusted. */
 	private static final int LOGIN_BURST_TICKS = 2;
+	static final String VERSION = "0.2.0";
+	private static final long HELLO_MILLIS = 5 * 60_000;
+	private static final long SYNC_MILLIS = 30_000;
+	private static final long USAGE_MILLIS = 10 * 60_000;
 
 	@Inject
 	private Client client;
@@ -93,6 +108,15 @@ public class OsrsFlipperPlugin extends Plugin
 	@Inject
 	private OfferHotkeys hotkeys;
 
+	@Inject
+	private AuthSession auth;
+
+	@Inject
+	private FlipperApiClient api;
+
+	@Inject
+	private UsageCounter usage;
+
 	private FlipperPanel panel;
 	private NavigationButton navButton;
 	private TradeStore store;
@@ -104,11 +128,23 @@ public class OsrsFlipperPlugin extends Plugin
 	private GameState lastGameState;
 	private long sessionStartMillis;
 
+	/** Client thread only. */
+	private Me me;
+	private String accountError;
+	private long lastHelloMillis;
+	private boolean helloInFlight;
+	private long lastSyncMillis;
+	private boolean syncInFlight;
+	private long lastUsageMillis;
+
 	@Override
 	protected void startUp()
 	{
-		store = new TradeStore(gson, new File(RuneLite.RUNELITE_DIR, "osrs-flipper"));
-		panel = new FlipperPanel(() -> clientThread.invokeLater(suggestions::skip));
+		File dir = new File(RuneLite.RUNELITE_DIR, "osrs-flipper");
+		store = new TradeStore(gson, dir);
+		panel = new FlipperPanel(new Actions());
+		panel.setAdvanced(config.viewMode() == OsrsFlipperConfig.ViewMode.ADVANCED);
+		auth.start(new TokenFile(gson, dir), config::apiUrl, () -> clientThread.invokeLater(this::onAuthChanged));
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "nav_icon.png");
 		navButton = NavigationButton.builder()
 			.tooltip("OSRS Flipper")
@@ -126,6 +162,7 @@ public class OsrsFlipperPlugin extends Plugin
 		clientThread.invokeLater(() ->
 		{
 			updateSuggestionPanel();
+			updateAccountPanel();
 			lastGameState = client.getGameState();
 			if (lastGameState == GameState.LOGGED_IN)
 			{
@@ -143,7 +180,10 @@ public class OsrsFlipperPlugin extends Plugin
 		keyManager.unregisterKeyListener(hotkeys);
 		suggestions.setOnChange(() -> { });
 		clientThread.invokeLater(suggestions::reset);
+		auth.stop();
+		flushUsage();
 		saveAsync();
+		me = null;
 		trades = null;
 		accountHash = -1;
 		pendingOffers.clear();
@@ -171,8 +211,10 @@ public class OsrsFlipperPlugin extends Plugin
 			{
 				trades = null;
 				accountHash = -1;
+				me = null;
 				suggestions.reset();
 				updatePanel();
+				updateAccountPanel();
 			}
 		}
 		lastGameState = state;
@@ -185,6 +227,24 @@ public class OsrsFlipperPlugin extends Plugin
 			? Collections.emptyMap()
 			: trades.getMatcher().getHoldings();
 		suggestions.tick(holdings);
+
+		long now = System.currentTimeMillis();
+		if (auth.getState() == AuthState.SIGNED_IN && trades != null)
+		{
+			if (!helloInFlight && now - lastHelloMillis >= HELLO_MILLIS)
+			{
+				hello();
+			}
+			if (config.syncTrades() && !syncInFlight && now - lastSyncMillis >= SYNC_MILLIS)
+			{
+				syncTrades();
+			}
+		}
+		if (now - lastUsageMillis >= USAGE_MILLIS)
+		{
+			lastUsageMillis = now;
+			flushUsage();
+		}
 	}
 
 	@Subscribe
@@ -220,10 +280,16 @@ public class OsrsFlipperPlugin extends Plugin
 		{
 			clientThread.invokeLater(() ->
 			{
+				panel.setAdvanced(config.viewMode() == OsrsFlipperConfig.ViewMode.ADVANCED);
 				suggestions.invalidate();
 				updateSuggestionPanel();
+				updatePanel();
+				if ("apiUrl".equals(event.getKey()) && auth.getState() == AuthState.SIGNED_IN)
+				{
+					// Tokens belong to the old server.
+					auth.signOut();
+				}
 			});
-			updatePanel();
 		}
 	}
 
@@ -264,9 +330,13 @@ public class OsrsFlipperPlugin extends Plugin
 			return;
 		}
 		accountHash = hash;
+		me = null;
+		lastHelloMillis = 0;
+		lastSyncMillis = 0;
 		try
 		{
 			trades = store.load(hash);
+			trades.ensureClientIds();
 		}
 		catch (IOException | RuntimeException e)
 		{
@@ -335,6 +405,208 @@ public class OsrsFlipperPlugin extends Plugin
 		final Suggestion current = suggestions.getCurrent();
 		final String error = suggestions.getError();
 		SwingUtilities.invokeLater(() -> panel.showSuggestion(enabled, current, error));
+	}
+
+	/** Client thread. */
+	private void onAuthChanged()
+	{
+		if (auth.getState() != AuthState.SIGNED_IN)
+		{
+			me = null;
+		}
+		lastHelloMillis = 0;
+		lastSyncMillis = 0;
+		suggestions.invalidate();
+		updateAccountPanel();
+		updateSuggestionPanel();
+	}
+
+	/** Client thread. Links the game account and refreshes plan and announcements. */
+	private void hello()
+	{
+		if (accountHash == -1)
+		{
+			return;
+		}
+		helloInFlight = true;
+		lastHelloMillis = System.currentTimeMillis();
+		final long hash = accountHash;
+		api.hello(Long.toString(hash), playerName(), VERSION,
+			result -> clientThread.invokeLater(() ->
+			{
+				helloInFlight = false;
+				if (hash == accountHash)
+				{
+					me = result;
+					accountError = null;
+					updateAccountPanel();
+				}
+			}),
+			message -> clientThread.invokeLater(() ->
+			{
+				helloInFlight = false;
+				accountError = message;
+				updateAccountPanel();
+			}));
+	}
+
+	/** Client thread. Uploads tracked trades the server doesn't have yet, one batch at a time. */
+	private void syncTrades()
+	{
+		lastSyncMillis = System.currentTimeMillis();
+		final AccountTrades current = trades;
+		final List<Transaction> batch = TradeSync.pending(current.getTransactions(), TradeSync.BATCH);
+		if (batch.isEmpty())
+		{
+			return;
+		}
+		syncInFlight = true;
+		api.uploadTrades(TradeSync.build(accountHash, playerName(), batch),
+			accepted -> clientThread.invokeLater(() ->
+			{
+				syncInFlight = false;
+				TradeSync.markUploaded(batch);
+				if (current == trades)
+				{
+					saveAsync();
+					if (batch.size() == TradeSync.BATCH)
+					{
+						// More waiting: go again on the next tick.
+						lastSyncMillis = 0;
+					}
+				}
+			}),
+			message -> clientThread.invokeLater(() ->
+			{
+				syncInFlight = false;
+				log.debug("Trade upload failed: {}", message);
+			}));
+	}
+
+	private void flushUsage()
+	{
+		Map<String, Integer> counts = usage.drain();
+		if (!counts.isEmpty() && auth.getState() == AuthState.SIGNED_IN)
+		{
+			api.usage(counts);
+		}
+	}
+
+	private String playerName()
+	{
+		Player player = client.getLocalPlayer();
+		return player == null || player.getName() == null ? "" : player.getName();
+	}
+
+	/** Client thread. */
+	private void updateAccountPanel()
+	{
+		final AuthState state = auth.getState();
+		final Me current = me;
+		final String error = accountError;
+		final com.osrsflipper.api.DeviceStart linking = auth.getLinking();
+		SwingUtilities.invokeLater(() -> panel.showAccount(state, linking, current, error));
+	}
+
+	/** Opens a page only if it's on the configured server, so the panel can't be made to open anything else. */
+	private void browse(String url)
+	{
+		String server = auth.server();
+		if (server != null && url != null && (url.equals(server) || url.startsWith(server + "/")))
+		{
+			LinkBrowser.browse(url);
+		}
+	}
+
+	/** Button handlers. Called on the Swing thread; work hops to the client thread. */
+	private class Actions implements PanelActions
+	{
+		@Override
+		public void signIn()
+		{
+			usage.add("panel.sign_in");
+			auth.beginLink(
+				url -> SwingUtilities.invokeLater(() -> browse(url)),
+				message -> clientThread.invokeLater(() ->
+				{
+					accountError = message;
+					updateAccountPanel();
+				}));
+			clientThread.invokeLater(() ->
+			{
+				accountError = null;
+				updateAccountPanel();
+			});
+		}
+
+		@Override
+		public void reopenSignIn()
+		{
+			com.osrsflipper.api.DeviceStart linking = auth.getLinking();
+			if (linking != null)
+			{
+				browse(linking.verificationUriComplete);
+			}
+		}
+
+		@Override
+		public void cancelSignIn()
+		{
+			auth.cancelLink();
+		}
+
+		@Override
+		public void signOut()
+		{
+			clientThread.invokeLater(() ->
+			{
+				flushUsage();
+				auth.signOut();
+			});
+		}
+
+		@Override
+		public void openWebsite()
+		{
+			String server = auth.server();
+			if (server != null)
+			{
+				usage.add("panel.website");
+				browse(server + "/dashboard");
+			}
+		}
+
+		@Override
+		public void skip()
+		{
+			usage.add("panel.skip");
+			clientThread.invokeLater(suggestions::skip);
+		}
+
+		@Override
+		public void rate(int rating)
+		{
+			usage.add(rating > 0 ? "panel.rate_good" : "panel.rate_bad");
+			clientThread.invokeLater(() -> suggestions.rate(rating));
+		}
+
+		@Override
+		public void explain()
+		{
+			usage.add("panel.explain");
+			clientThread.invokeLater(() ->
+			{
+				Suggestion current = suggestions.getCurrent();
+				if (current == null || current.itemId == null)
+				{
+					SwingUtilities.invokeLater(() -> panel.showExplanation(null));
+					return;
+				}
+				api.explain(current.itemId,
+					answer -> SwingUtilities.invokeLater(() -> panel.showExplanation(answer == null ? null : answer.answer)),
+					message -> SwingUtilities.invokeLater(() -> panel.showExplanation(message)));
+			});
+		}
 	}
 
 	static OfferStatus toStatus(GrandExchangeOfferState state)

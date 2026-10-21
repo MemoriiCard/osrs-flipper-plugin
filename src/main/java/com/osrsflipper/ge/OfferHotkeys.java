@@ -3,6 +3,7 @@ package com.osrsflipper.ge;
 import com.osrsflipper.OsrsFlipperConfig;
 import com.osrsflipper.suggestion.NextStep;
 import com.osrsflipper.suggestion.SuggestionController;
+import com.osrsflipper.sync.UsageCounter;
 import java.awt.event.KeyEvent;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -21,11 +22,13 @@ public class OfferHotkeys implements KeyListener
 	private final ClientThread clientThread;
 	private final GrandExchangeWidgets ge;
 	private final SuggestionController suggestions;
+	private final UsageCounter usage;
 
 	@Inject
 	public OfferHotkeys(OsrsFlipperConfig config, ClientThread clientThread, GrandExchangeWidgets ge,
-		SuggestionController suggestions)
+		SuggestionController suggestions, UsageCounter usage)
 	{
+		this.usage = usage;
 		this.config = config;
 		this.clientThread = clientThread;
 		this.ge = ge;
@@ -70,12 +73,14 @@ public class OfferHotkeys implements KeyListener
 				if (value > 0)
 				{
 					ge.fillPrompt(value);
+					usage.add("hotkey.quick_set");
 				}
 			}
 			return;
 		}
 		if (skip)
 		{
+			usage.add("hotkey.skip");
 			suggestions.skip();
 		}
 	}
