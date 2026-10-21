@@ -2,7 +2,6 @@ package com.osrsflipper.ui;
 
 import com.osrsflipper.api.PriceHistory;
 import java.awt.BasicStroke;
-import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -27,16 +26,12 @@ import javax.swing.ToolTipManager;
  */
 public class PriceChart extends JPanel
 {
-	static final Color HIGH = new Color(0xFF, 0x9F, 0x40);
-	static final Color LOW = new Color(0x4D, 0xA3, 0xFF);
-	private static final Color GRID = new Color(0x3A, 0x3A, 0x3A);
-	private static final Color TEXT = new Color(0xA5, 0xA5, 0xA5);
-	private static final Color CROSSHAIR = new Color(0x80, 0x80, 0x80);
 	private static final int TOP = 18;
 	private static final int BOTTOM = 14;
 	private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT);
 	private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("d MMM HH:mm", Locale.ROOT);
 
+	private Theme theme = Theme.GRAND_EXCHANGE;
 	private List<PriceHistory.Point> points = Collections.emptyList();
 	private boolean hourly;
 	private int hoverX = -1;
@@ -64,6 +59,12 @@ public class PriceChart extends JPanel
 		};
 		addMouseListener(hover);
 		addMouseMotionListener(hover);
+	}
+
+	public void setTheme(Theme theme)
+	{
+		this.theme = theme;
+		repaint();
 	}
 
 	public void setHistory(PriceHistory history)
@@ -98,17 +99,17 @@ public class PriceChart extends JPanel
 		long[] range = range(points);
 		if (range == null)
 		{
-			g.setColor(TEXT);
+			g.setColor(theme.muted);
 			g.drawString("No trades recorded for this period yet.", 0, h / 2);
 			g.dispose();
 			return;
 		}
 
 		int plotH = h - TOP - BOTTOM;
-		g.setColor(GRID);
+		g.setColor(theme.border);
 		g.drawLine(0, TOP, w, TOP);
 		g.drawLine(0, TOP + plotH, w, TOP + plotH);
-		g.setColor(TEXT);
+		g.setColor(theme.muted);
 		g.drawString(price(range[1]), 0, TOP - 5);
 		g.drawString(price(range[0]), 0, h - 2);
 		String span = label(points.get(0).t) + " to now";
@@ -123,7 +124,7 @@ public class PriceChart extends JPanel
 		{
 			int x = x(i, points.size(), w);
 			g.setStroke(new BasicStroke(1f));
-			g.setColor(CROSSHAIR);
+			g.setColor(theme.muted);
 			g.drawLine(x, TOP, x, TOP + plotH);
 		}
 		g.dispose();
@@ -153,7 +154,7 @@ public class PriceChart extends JPanel
 				drawing = true;
 			}
 		}
-		g.setColor(high ? HIGH : LOW);
+		g.setColor(high ? theme.chartHigh : theme.chartLow);
 		g.draw(path);
 	}
 

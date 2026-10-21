@@ -30,10 +30,6 @@ import net.runelite.client.ui.overlay.OverlayPosition;
  */
 public class HighlightOverlay extends Overlay
 {
-	private static final Color FILL = new Color(0x4C, 0xBB, 0x17, 50);
-	private static final Color BORDER = new Color(0x4C, 0xBB, 0x17, 200);
-	private static final Color ABORT_FILL = new Color(0xE0, 0x4B, 0x4B, 50);
-	private static final Color ABORT_BORDER = new Color(0xE0, 0x4B, 0x4B, 200);
 	/** The clickable part of the set-price and set-quantity buttons. */
 	private static final Rectangle SET_BUTTON_AREA = new Rectangle(1, 6, 33, 23);
 	private static final Color COMPETITIVE = new Color(0x4C, 0xBB, 0x17, 170);
@@ -164,7 +160,7 @@ public class HighlightOverlay extends Overlay
 		g.drawString(line, x, y);
 	}
 
-	private static void draw(Graphics2D g, Widget widget, Rectangle area, boolean abort)
+	private void draw(Graphics2D g, Widget widget, Rectangle area, boolean abort)
 	{
 		if (widget == null || widget.isHidden())
 		{
@@ -179,9 +175,11 @@ public class HighlightOverlay extends Overlay
 		{
 			bounds = new Rectangle(bounds.x + area.x, bounds.y + area.y, area.width, area.height);
 		}
-		g.setColor(abort ? ABORT_FILL : FILL);
+		// The suggestion highlight follows the theme; aborts stay red in every theme.
+		Color color = abort ? config.theme().loss : config.theme().accent;
+		g.setColor(Theme.withAlpha(color, 50));
 		g.fill(bounds);
-		g.setColor(abort ? ABORT_BORDER : BORDER);
+		g.setColor(Theme.withAlpha(color, 210));
 		g.setStroke(new BasicStroke(2));
 		g.draw(bounds);
 	}

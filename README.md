@@ -16,6 +16,8 @@ offer, and tracks your profit.
   buy price, quantity and expected profit. "Use" makes it the current suggestion.
 - **Stale offer repricing.** An offer that sits longer than your check-in window at a price the market
   has left gets flagged, with the price to rebuy or relist at.
+- **Themes.** Grand Exchange, RuneLite, Matrix, Amethyst, Neon Cyan and Dragon. Every theme is dark
+  and contrast-checked, and the in-game highlight follows the theme.
 - **Price chart.** Day, week and month charts of the item you're setting up or the suggested item.
 - **Offer slot colours.** Active offers are outlined green while their price still fills and red once
   the market has moved past it.
