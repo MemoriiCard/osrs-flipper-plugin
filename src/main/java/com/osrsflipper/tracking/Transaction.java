@@ -1,5 +1,7 @@
 package com.osrsflipper.tracking;
 
+import java.util.UUID;
+
 /**
  * A fill of some quantity at one GE slot, derived from the change between two slot snapshots.
  */
@@ -15,6 +17,10 @@ public class Transaction
 	public long totalCoins;
 	public long timestampMillis;
 	public int slot;
+	/** Random ID so the server can ignore a trade it already has when an upload is retried. */
+	public String clientId;
+	/** Whether the server has acknowledged this trade. */
+	public boolean uploaded;
 
 	public Transaction()
 	{
@@ -30,5 +36,6 @@ public class Transaction
 		this.pricePerItem = quantity == 0 ? 0 : (int) (totalCoins / quantity);
 		this.timestampMillis = timestampMillis;
 		this.slot = slot;
+		this.clientId = UUID.randomUUID().toString();
 	}
 }

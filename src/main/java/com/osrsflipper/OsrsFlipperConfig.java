@@ -20,6 +20,12 @@ public interface OsrsFlipperConfig extends Config
 		HIGH
 	}
 
+	enum ViewMode
+	{
+		SIMPLE,
+		ADVANCED
+	}
+
 	@ConfigSection(
 		name = "Suggestions",
 		description = "What kind of flips to suggest",
@@ -40,6 +46,25 @@ public interface OsrsFlipperConfig extends Config
 		position = 2
 	)
 	String trackingSection = "tracking";
+
+	@ConfigSection(
+		name = "Connection",
+		description = "Where the plugin gets suggestions from",
+		position = 3,
+		closedByDefault = true
+	)
+	String connectionSection = "connection";
+
+	@ConfigItem(
+		keyName = "viewMode",
+		name = "Panel view",
+		description = "Simple shows the next step and your profit. Advanced adds the reasoning, ratings, 'why this item' and every recent flip.",
+		position = -1
+	)
+	default ViewMode viewMode()
+	{
+		return ViewMode.SIMPLE;
+	}
 
 	@ConfigItem(
 		keyName = "suggestionsEnabled",
@@ -140,11 +165,23 @@ public interface OsrsFlipperConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "apiUrl",
-		name = "Server URL",
-		description = "OSRS Flipper server address. Leave as is unless told otherwise.",
+		keyName = "allowSharedItems",
+		name = "Same items on my alts",
+		description = "Let your other game accounts be suggested the same item at the same time. Off spreads them across different items so they don't outbid each other.",
 		section = suggestionSection,
 		position = 8
+	)
+	default boolean allowSharedItems()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "apiUrl",
+		name = "Server URL",
+		description = "OSRS Flipper server address. Must start with https://. Leave as is unless told otherwise.",
+		section = connectionSection,
+		position = 0
 	)
 	default String apiUrl()
 	{
@@ -200,11 +237,23 @@ public interface OsrsFlipperConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "recentFlipCount",
-		name = "Recent flips shown",
-		description = "How many recent flips the side panel lists.",
+		keyName = "syncTrades",
+		name = "Sync flips to website",
+		description = "Upload your tracked GE trades to your OSRS Flipper account so you can see history and charts on the website. Needs sign-in.",
 		section = trackingSection,
 		position = 1
+	)
+	default boolean syncTrades()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "recentFlipCount",
+		name = "Recent flips shown",
+		description = "How many recent flips the side panel lists in the advanced view.",
+		section = trackingSection,
+		position = 2
 	)
 	default int recentFlipCount()
 	{

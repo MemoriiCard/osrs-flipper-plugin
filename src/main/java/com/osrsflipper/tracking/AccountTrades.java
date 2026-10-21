@@ -2,6 +2,7 @@ package com.osrsflipper.tracking;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Everything tracked for one game account. Serialized to disk as JSON.
@@ -34,6 +35,18 @@ public class AccountTrades
 			add(flips, flip);
 		}
 		return flip;
+	}
+
+	/** Trades saved by versions before upload support have no client ID yet. */
+	public void ensureClientIds()
+	{
+		for (Transaction t : transactions)
+		{
+			if (t.clientId == null)
+			{
+				t.clientId = UUID.randomUUID().toString();
+			}
+		}
 	}
 
 	public List<Flip> getFlips()
