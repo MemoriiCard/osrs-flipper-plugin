@@ -8,6 +8,11 @@ import com.osrsflipper.api.Suggestion;
 import com.osrsflipper.auth.AuthSession;
 import com.osrsflipper.auth.AuthState;
 import com.osrsflipper.auth.TokenFile;
+import com.osrsflipper.ge.GrandExchangeWidgets;
+import com.osrsflipper.market.AlertController;
+import com.osrsflipper.market.ConfirmGuard;
+import com.osrsflipper.market.GuardState;
+import com.osrsflipper.market.PriceCache;
 import com.osrsflipper.ge.OfferHotkeys;
 import com.osrsflipper.suggestion.SuggestionController;
 import com.osrsflipper.sync.TradeSync;
@@ -26,8 +31,10 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
@@ -36,12 +43,17 @@ import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.GrandExchangeOffer;
 import net.runelite.api.GrandExchangeOfferState;
+import net.runelite.api.MenuEntry;
 import net.runelite.api.Player;
+import net.runelite.api.WorldType;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.GrandExchangeOfferChanged;
 import net.runelite.api.events.ItemContainerChanged;
+import net.runelite.api.events.MenuEntryAdded;
+import net.runelite.api.widgets.Widget;
 import net.runelite.api.gameval.InventoryID;
+import net.runelite.client.Notifier;
 import net.runelite.client.RuneLite;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
@@ -116,6 +128,21 @@ public class OsrsFlipperPlugin extends Plugin
 
 	@Inject
 	private UsageCounter usage;
+
+	@Inject
+	private GrandExchangeWidgets ge;
+
+	@Inject
+	private PriceCache prices;
+
+	@Inject
+	private GuardState guard;
+
+	@Inject
+	private AlertController alerts;
+
+	@Inject
+	private Notifier notifier;
 
 	private FlipperPanel panel;
 	private NavigationButton navButton;
@@ -213,8 +240,12 @@ public class OsrsFlipperPlugin extends Plugin
 				accountHash = -1;
 				me = null;
 				suggestions.reset();
+				alerts.reset();
+				prices.clear();
+				guard.setReason(null);
 				updatePanel();
 				updateAccountPanel();
+				updateAlertPanel();
 			}
 		}
 		lastGameState = state;
@@ -240,10 +271,36 @@ public class OsrsFlipperPlugin extends Plugin
 				syncTrades();
 			}
 		}
+		if (auth.getState() == AuthState.SIGNED_IN && client.getGameState() == GameState.LOGGED_IN)
+		{
+			prices.want(pricedItems());
+			if (config.dumpAlerts() && me != null && me.accountPremium() && accountHash != -1)
+			{
+				alerts.poll(accountHash, coins(), config.minProfit(), config.f2pOnly(),
+					client.getWorldType().contains(WorldType.MEMBERS), this::onNewAlert, this::updateAlertPanel);
+			}
+		}
+		updateGuard();
 		if (now - lastUsageMillis >= USAGE_MILLIS)
 		{
 			lastUsageMillis = now;
 			flushUsage();
+		}
+	}
+
+	@Subscribe
+	public void onMenuEntryAdded(MenuEntryAdded event)
+	{
+		if (!config.confirmGuard() || guard.getReason() == null)
+		{
+			return;
+		}
+		Widget confirm = ge.confirmButton();
+		MenuEntry entry = event.getMenuEntry();
+		if (confirm != null && entry.getParam1() == confirm.getId() && "Confirm".equals(entry.getOption()))
+		{
+			// Still on the right-click menu; just not on left-click.
+			entry.setDeprioritized(true);
 		}
 	}
 
@@ -281,6 +338,7 @@ public class OsrsFlipperPlugin extends Plugin
 			clientThread.invokeLater(() ->
 			{
 				panel.setAdvanced(config.viewMode() == OsrsFlipperConfig.ViewMode.ADVANCED);
+				updateAlertPanel();
 				suggestions.invalidate();
 				updateSuggestionPanel();
 				updatePanel();
@@ -405,6 +463,74 @@ public class OsrsFlipperPlugin extends Plugin
 		final Suggestion current = suggestions.getCurrent();
 		final String error = suggestions.getError();
 		SwingUtilities.invokeLater(() -> panel.showSuggestion(enabled, current, error));
+	}
+
+	/** Items whose market price the slot colours and guard need: open offers, the offer being set up, the suggestion. */
+	private Set<Integer> pricedItems()
+	{
+		Set<Integer> ids = new HashSet<>();
+		for (GrandExchangeOffer offer : client.getGrandExchangeOffers())
+		{
+			if (offer != null && offer.getState() != GrandExchangeOfferState.EMPTY)
+			{
+				ids.add(offer.getItemId());
+			}
+		}
+		if (ge.isSetupOpen())
+		{
+			ids.add(ge.setupItemId());
+		}
+		Suggestion current = suggestions.getCurrent();
+		if (current != null && current.itemId != null)
+		{
+			ids.add(current.itemId);
+		}
+		return ids;
+	}
+
+	/** Client thread. Works out whether the offer being set up looks like a typo. */
+	private void updateGuard()
+	{
+		String reason = null;
+		if (config.confirmGuard() && ge.isSetupOpen())
+		{
+			int itemId = ge.setupItemId();
+			reason = ConfirmGuard.check(ge.isSetupSell(), itemId, ge.setupPrice(), prices.get(itemId),
+				suggestions.getCurrent(), config.confirmGuardPercent());
+		}
+		guard.setReason(reason);
+	}
+
+	private long coins()
+	{
+		net.runelite.api.ItemContainer inv = client.getItemContainer(InventoryID.INV);
+		if (inv == null)
+		{
+			return 0;
+		}
+		long total = 0;
+		for (net.runelite.api.Item item : inv.getItems())
+		{
+			if (item.getId() == com.osrsflipper.suggestion.RequestBuilder.Inventory.COINS)
+			{
+				total += item.getQuantity();
+			}
+		}
+		return total;
+	}
+
+	/** Client thread. */
+	private void onNewAlert(com.osrsflipper.api.DumpAlert alert)
+	{
+		notifier.notify(config.dumpNotification(), String.format("Dump alert: %s is %.0f%% below its usual price.",
+			alert.name, alert.dropPercent));
+	}
+
+	/** Client thread. */
+	private void updateAlertPanel()
+	{
+		final List<com.osrsflipper.api.DumpAlert> list = config.dumpAlerts() ? alerts.getAlerts() : Collections.emptyList();
+		SwingUtilities.invokeLater(() -> panel.showAlerts(list));
 	}
 
 	/** Client thread. */
@@ -588,6 +714,23 @@ public class OsrsFlipperPlugin extends Plugin
 		{
 			usage.add(rating > 0 ? "panel.rate_good" : "panel.rate_bad");
 			clientThread.invokeLater(() -> suggestions.rate(rating));
+		}
+
+		@Override
+		public void useAlert(com.osrsflipper.api.DumpAlert alert)
+		{
+			usage.add("panel.use_alert");
+			clientThread.invokeLater(() -> suggestions.useAlert(alert));
+		}
+
+		@Override
+		public void dismissAlert(String alertId)
+		{
+			clientThread.invokeLater(() ->
+			{
+				alerts.dismiss(alertId);
+				updateAlertPanel();
+			});
 		}
 
 		@Override

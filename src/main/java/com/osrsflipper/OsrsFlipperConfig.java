@@ -6,6 +6,7 @@ import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.ConfigSection;
 import net.runelite.client.config.Keybind;
+import net.runelite.client.config.Notification;
 import net.runelite.client.config.Range;
 
 @ConfigGroup(OsrsFlipperConfig.GROUP)
@@ -43,14 +44,21 @@ public interface OsrsFlipperConfig extends Config
 	@ConfigSection(
 		name = "Tracking",
 		description = "Flip tracking and the side panel",
-		position = 2
+		position = 3
 	)
 	String trackingSection = "tracking";
 
 	@ConfigSection(
+		name = "Dump alerts",
+		description = "Items just sold far below their usual price (premium)",
+		position = 2
+	)
+	String alertSection = "alerts";
+
+	@ConfigSection(
 		name = "Connection",
 		description = "Where the plugin gets suggestions from",
-		position = 3,
+		position = 4,
 		closedByDefault = true
 	)
 	String connectionSection = "connection";
@@ -222,6 +230,67 @@ public interface OsrsFlipperConfig extends Config
 	default Keybind skipKeybind()
 	{
 		return Keybind.NOT_SET;
+	}
+
+	@ConfigItem(
+		keyName = "slotColors",
+		name = "Colour offer slots",
+		description = "Outline active GE offers green while their price will fill and red once the market has moved past it.",
+		section = offerSection,
+		position = 3
+	)
+	default boolean slotColors()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "confirmGuard",
+		name = "Mis-click guard",
+		description = "When an offer's price looks like a typo, move Confirm off left-click. It stays in the right-click menu.",
+		section = offerSection,
+		position = 4
+	)
+	default boolean confirmGuard()
+	{
+		return true;
+	}
+
+	@Range(min = 1, max = 100)
+	@ConfigItem(
+		keyName = "confirmGuardPercent",
+		name = "Guard when off by (%)",
+		description = "How far from the market or the suggested price an offer can be before the guard steps in.",
+		section = offerSection,
+		position = 5
+	)
+	default int confirmGuardPercent()
+	{
+		return 10;
+	}
+
+	@ConfigItem(
+		keyName = "dumpAlerts",
+		name = "Show dump alerts",
+		description = "Check once a minute for items just sold far below their usual price. Premium accounts only.",
+		section = alertSection,
+		position = 0
+	)
+	default boolean dumpAlerts()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "dumpNotification",
+		name = "Notify on dump alert",
+		description = "Notification when a new dump alert arrives.",
+		section = alertSection,
+		position = 1
+	)
+	default Notification dumpNotification()
+	{
+		return Notification.ON;
 	}
 
 	@ConfigItem(
