@@ -3,6 +3,9 @@ package com.osrsflipper.api;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.osrsflipper.auth.AuthSession;
+import com.osrsflipper.market.MarketPrice;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -98,6 +101,19 @@ public class FlipperApiClient
 		String path = "/v1/alerts?account_hash=" + accountHash + "&coins=" + Math.max(0, coins)
 			+ "&min_profit=" + Math.max(0, minProfit) + "&f2p_only=" + f2pOnly + "&members=" + members;
 		get(path, Alerts.class, onSuccess, onError);
+	}
+
+	public void latestPrices(Collection<Integer> itemIds, Consumer<List<MarketPrice>> onSuccess, Consumer<String> onError)
+	{
+		StringBuilder path = new StringBuilder("/v1/prices/latest");
+		char sep = '?';
+		for (Integer id : itemIds)
+		{
+			path.append(sep).append("ids=").append(id.intValue());
+			sep = '&';
+		}
+		get(path.toString(), MarketPrice[].class,
+			prices -> onSuccess.accept(prices == null ? java.util.Collections.emptyList() : Arrays.asList(prices)), onError);
 	}
 
 	private <T> void post(String path, Object body, Class<T> type, Consumer<T> onSuccess, Consumer<String> onError)

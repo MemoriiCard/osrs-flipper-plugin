@@ -19,4 +19,9 @@ public interface PanelActions
 	void rate(int rating);
 
 	void explain();
+
+	/** Make a dump alert the current suggestion. */
+	void useAlert(com.osrsflipper.api.DumpAlert alert);
+
+	void dismissAlert(String alertId);
 }

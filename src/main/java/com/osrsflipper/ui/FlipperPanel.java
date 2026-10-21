@@ -1,6 +1,7 @@
 package com.osrsflipper.ui;
 
 import com.osrsflipper.api.DeviceStart;
+import com.osrsflipper.api.DumpAlert;
 import com.osrsflipper.api.Me;
 import com.osrsflipper.api.Suggestion;
 import com.osrsflipper.auth.AuthState;
@@ -55,6 +56,9 @@ public class FlipperPanel extends PluginPanel
 	private final JButton whyButton = button("Why?", "Explain why this item was suggested");
 	private final JPanel feedbackRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
 
+	private final JPanel alertList = new JPanel(new GridLayout(0, 1, 0, 4));
+	private final PanelActions actions;
+
 	private final JLabel sessionLabel = new JLabel();
 	private final JLabel allTimeLabel = new JLabel();
 	private final JLabel status = new JLabel();
@@ -65,6 +69,7 @@ public class FlipperPanel extends PluginPanel
 
 	public FlipperPanel(PanelActions actions)
 	{
+		this.actions = actions;
 		setLayout(new BorderLayout());
 		setBorder(new EmptyBorder(10, 10, 10, 10));
 
@@ -79,6 +84,9 @@ public class FlipperPanel extends PluginPanel
 		header.add(announcements);
 		header.add(suggestionCard(actions));
 		header.add(gap());
+		alertList.setOpaque(false);
+		alertList.setAlignmentX(LEFT_ALIGNMENT);
+		header.add(alertList);
 		header.add(left(sessionLabel));
 		header.add(left(allTimeLabel));
 		header.add(left(status));
@@ -292,6 +300,42 @@ public class FlipperPanel extends PluginPanel
 			whyButton.setEnabled(true);
 			showExplanation(null);
 		}
+	}
+
+	/** Dump alerts for premium accounts; an empty list hides the section. */
+	public void showAlerts(List<DumpAlert> alerts)
+	{
+		alertList.removeAll();
+		for (DumpAlert alert : alerts)
+		{
+			JPanel card = card();
+			card.setBorder(BorderFactory.createCompoundBorder(
+				BorderFactory.createMatteBorder(0, 3, 0, 0, NOTICE), new EmptyBorder(6, 8, 6, 8)));
+			JLabel title = new JLabel(html(String.format("Dump: %s, %.0f%% down", alert.name, alert.dropPercent)));
+			title.setForeground(NOTICE);
+			JLabel detail = new JLabel(html(String.format("Buy %,d at %,d, est. profit %s",
+				alert.quantity, alert.buyPrice, gp(alert.expectedProfit))));
+			detail.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+			JPanel text = new JPanel(new GridLayout(0, 1, 0, 2));
+			text.setOpaque(false);
+			text.add(title);
+			text.add(detail);
+			card.add(text, BorderLayout.CENTER);
+
+			JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+			buttons.setOpaque(false);
+			JButton use = button("Use", "Make this the current suggestion");
+			use.addActionListener(e -> actions.useAlert(alert));
+			JButton dismiss = button("Dismiss", null);
+			dismiss.addActionListener(e -> actions.dismissAlert(alert.id));
+			buttons.add(use);
+			buttons.add(dismiss);
+			card.add(buttons, BorderLayout.SOUTH);
+			alertList.add(card);
+		}
+		alertList.setVisible(!alerts.isEmpty());
+		alertList.revalidate();
+		alertList.repaint();
 	}
 
 	public void showExplanation(String text)

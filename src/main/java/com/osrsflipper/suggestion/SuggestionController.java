@@ -38,6 +38,8 @@ public class SuggestionController
 {
 	static final long REFRESH_MILLIS = 60_000;
 	static final long MIN_GAP_MILLIS = 2_000;
+	/** How long a dump alert the player chose stays as the suggestion before normal ones resume. */
+	static final long ALERT_PIN_MILLIS = 3 * 60_000;
 
 	private final Client client;
 	private final ClientThread clientThread;
@@ -59,6 +61,7 @@ public class SuggestionController
 	private long lastRequestMillis;
 	/** Bumped on logout or reset so replies to older requests are dropped. */
 	private int generation;
+	private long pinnedUntil;
 
 	@Inject
 	public SuggestionController(Client client, ClientThread clientThread, ItemManager itemManager,
@@ -81,6 +84,7 @@ public class SuggestionController
 	public void reset()
 	{
 		generation++;
+		pinnedUntil = 0;
 		current = null;
 		error = null;
 		inFlight = false;
@@ -96,6 +100,7 @@ public class SuggestionController
 			api.feedback(current.suggestionId, "skipped", null);
 			skips.skip(current.itemId, System.currentTimeMillis());
 			current = null;
+			pinnedUntil = 0;
 			dirty = true;
 			onChange.run();
 		}
@@ -133,6 +138,11 @@ public class SuggestionController
 			return;
 		}
 		long now = System.currentTimeMillis();
+		if (now < pinnedUntil && current != null && !hasOffer(current.itemId))
+		{
+			return;
+		}
+		pinnedUntil = 0;
 		boolean due = dirty ? now - lastRequestMillis >= MIN_GAP_MILLIS : now - lastRequestMillis >= REFRESH_MILLIS;
 		if (!due)
 		{
@@ -172,6 +182,43 @@ public class SuggestionController
 			error = message;
 		}
 		onChange.run();
+	}
+
+	/** Makes a dump alert the current suggestion, so highlights and hotkeys walk the player through it. */
+	public void useAlert(com.osrsflipper.api.DumpAlert alert)
+	{
+		Suggestion s = new Suggestion();
+		s.action = Suggestion.BUY;
+		s.itemId = alert.itemId;
+		s.name = alert.name;
+		s.price = alert.buyPrice;
+		s.quantity = alert.quantity;
+		s.expectedProfit = alert.expectedProfit;
+		s.premium = true;
+		s.reason = String.format("Dump alert: sold %.0f%% below its usual price. Buy at %,d and sell back near %,d.",
+			alert.dropPercent, alert.buyPrice, alert.sellPrice);
+		generation++;
+		inFlight = false;
+		current = s;
+		error = null;
+		pinnedUntil = System.currentTimeMillis() + ALERT_PIN_MILLIS;
+		onChange.run();
+	}
+
+	private boolean hasOffer(Integer itemId)
+	{
+		if (itemId == null)
+		{
+			return false;
+		}
+		for (GrandExchangeOffer offer : client.getGrandExchangeOffers())
+		{
+			if (offer != null && offer.getState() != GrandExchangeOfferState.EMPTY && offer.getItemId() == itemId)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** Thumbs up (1) or down (-1) on the current suggestion. */
