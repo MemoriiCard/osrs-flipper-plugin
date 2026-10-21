@@ -8,7 +8,7 @@ public class OfferSnapshot
 	public int slot;
 	public int itemId;
 	public OfferStatus status;
-	public int price;
+	public long price;
 	public int totalQuantity;
 	public int quantityFilled;
 	/** Total coins spent (buy) or received before tax (sell) so far. */
@@ -18,7 +18,7 @@ public class OfferSnapshot
 	{
 	}
 
-	public OfferSnapshot(int slot, int itemId, OfferStatus status, int price, int totalQuantity, int quantityFilled, long spent)
+	public OfferSnapshot(int slot, int itemId, OfferStatus status, long price, int totalQuantity, int quantityFilled, long spent)
 	{
 		this.slot = slot;
 		this.itemId = itemId;
