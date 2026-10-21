@@ -15,6 +15,16 @@ Checked against the Plugin Hub's rules as of October 2026. What's done, then wha
 - Tokens are stored outside RuneLite's config (so they never sync to a RuneLite profile) and only sent
   over HTTPS.
 
+## Testing before approval
+
+See [TESTING.md](TESTING.md) for the runnable tester jar that CI builds on every run.
+
+## Submit early
+
+Plugin Hub reviews can take one to several weeks, so it's worth submitting as soon as the backend is
+deployed and you've done one clean in-game flip, and carrying on friend testing with the tester jar
+while it's in review. Each fix after that is a new commit hash in the same plugin-hub pull request.
+
 ## Left to do before submitting
 
 1. **Deploy the backend** on its own domain with HTTPS (for example `api.<your domain>`), and set
