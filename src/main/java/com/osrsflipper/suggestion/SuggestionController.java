@@ -1,0 +1,215 @@
+package com.osrsflipper.suggestion;
+
+import com.osrsflipper.OsrsFlipperConfig;
+import com.osrsflipper.api.FlipperApiClient;
+import com.osrsflipper.api.Suggestion;
+import com.osrsflipper.api.SuggestionRequest;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import javax.inject.Inject;
+import javax.inject.Singleton;
+import lombok.Getter;
+import lombok.Setter;
+import net.runelite.api.Client;
+import net.runelite.api.GameState;
+import net.runelite.api.GrandExchangeOffer;
+import net.runelite.api.GrandExchangeOfferState;
+import net.runelite.api.Item;
+import net.runelite.api.ItemContainer;
+import net.runelite.api.WorldType;
+import net.runelite.api.gameval.InventoryID;
+import net.runelite.client.callback.ClientThread;
+import net.runelite.client.game.ItemManager;
+
+/**
+ * Keeps one current suggestion for the logged-in account. Asks the server again when the player's
+ * offers, inventory or settings change, and otherwise once a minute so prices stay fresh.
+ *
+ * <p>All methods run on the client thread.</p>
+ */
+@Singleton
+public class SuggestionController
+{
+	static final long REFRESH_MILLIS = 60_000;
+	static final long MIN_GAP_MILLIS = 2_000;
+
+	private final Client client;
+	private final ClientThread clientThread;
+	private final ItemManager itemManager;
+	private final OsrsFlipperConfig config;
+	private final FlipperApiClient api;
+	private final SkipList skips = new SkipList();
+
+	@Getter
+	private Suggestion current;
+	@Getter
+	private String error;
+	@Setter
+	private Runnable onChange = () -> { };
+
+	private boolean dirty = true;
+	private boolean inFlight;
+	private long lastRequestMillis;
+	/** Bumped on logout or reset so replies to older requests are dropped. */
+	private int generation;
+
+	@Inject
+	public SuggestionController(Client client, ClientThread clientThread, ItemManager itemManager,
+		OsrsFlipperConfig config, FlipperApiClient api)
+	{
+		this.client = client;
+		this.clientThread = clientThread;
+		this.itemManager = itemManager;
+		this.config = config;
+		this.api = api;
+	}
+
+	/** Something the server bases suggestions on has changed. */
+	public void invalidate()
+	{
+		dirty = true;
+	}
+
+	public void reset()
+	{
+		generation++;
+		current = null;
+		error = null;
+		inFlight = false;
+		dirty = true;
+		skips.clear();
+		onChange.run();
+	}
+
+	public void skip()
+	{
+		if (current != null && current.itemId != null)
+		{
+			skips.skip(current.itemId, System.currentTimeMillis());
+			current = null;
+			dirty = true;
+			onChange.run();
+		}
+	}
+
+	/**
+	 * Call every game tick.
+	 *
+	 * @param holdings tracked buys not yet sold, by item ID
+	 */
+	public void tick(Map<Integer, Integer> holdings)
+	{
+		if (!config.suggestionsEnabled())
+		{
+			if (current != null || error != null)
+			{
+				current = null;
+				error = null;
+				onChange.run();
+			}
+			return;
+		}
+		if (client.getGameState() != GameState.LOGGED_IN || inFlight)
+		{
+			return;
+		}
+		long now = System.currentTimeMillis();
+		boolean due = dirty ? now - lastRequestMillis >= MIN_GAP_MILLIS : now - lastRequestMillis >= REFRESH_MILLIS;
+		if (!due)
+		{
+			return;
+		}
+
+		SuggestionRequest request = RequestBuilder.build(settings(), offers(), inventory(), holdings,
+			client.getWorldType().contains(WorldType.MEMBERS), skips.active(now));
+		dirty = false;
+		inFlight = true;
+		lastRequestMillis = now;
+		final int requestGeneration = generation;
+		api.suggest(config.apiUrl(), request,
+			suggestion -> clientThread.invokeLater(() -> finish(requestGeneration, suggestion, null)),
+			message -> clientThread.invokeLater(() -> finish(requestGeneration, null, message)));
+	}
+
+	private void finish(int requestGeneration, Suggestion suggestion, String message)
+	{
+		if (requestGeneration != generation)
+		{
+			return;
+		}
+		inFlight = false;
+		if (suggestion != null)
+		{
+			current = suggestion;
+			error = null;
+		}
+		else
+		{
+			// Keep showing the last suggestion; the error explains why it may be stale.
+			error = message;
+		}
+		onChange.run();
+	}
+
+	private RequestBuilder.Settings settings()
+	{
+		RequestBuilder.Settings s = new RequestBuilder.Settings();
+		s.risk = config.riskLevel().name().toLowerCase(Locale.ROOT);
+		s.timeframeMinutes = config.timeframeMinutes();
+		s.f2pOnly = config.f2pOnly();
+		s.blockedItems = config.blockedItems();
+		s.minProfit = config.minProfit();
+		s.reservedSlots = config.reservedSlots();
+		s.sellOnly = config.sellOnly();
+		return s;
+	}
+
+	private List<SuggestionRequest.Offer> offers()
+	{
+		List<SuggestionRequest.Offer> offers = new ArrayList<>();
+		GrandExchangeOffer[] slots = client.getGrandExchangeOffers();
+		for (int i = 0; i < slots.length; i++)
+		{
+			GrandExchangeOffer offer = slots[i];
+			if (offer == null || offer.getState() == GrandExchangeOfferState.EMPTY || offer.getPrice() <= 0)
+			{
+				continue;
+			}
+			GrandExchangeOfferState state = offer.getState();
+			SuggestionRequest.Offer o = new SuggestionRequest.Offer();
+			o.slot = i;
+			o.itemId = offer.getItemId();
+			o.isBuy = state == GrandExchangeOfferState.BUYING || state == GrandExchangeOfferState.BOUGHT
+				|| state == GrandExchangeOfferState.CANCELLED_BUY;
+			o.price = offer.getPrice();
+			o.totalQuantity = Math.max(1, offer.getTotalQuantity());
+			o.filledQuantity = offer.getQuantitySold();
+			o.active = state == GrandExchangeOfferState.BUYING || state == GrandExchangeOfferState.SELLING;
+			offers.add(o);
+		}
+		return offers;
+	}
+
+	/** Inventory by unnoted item ID. */
+	private Map<Integer, Long> inventory()
+	{
+		Map<Integer, Long> totals = new HashMap<>();
+		ItemContainer container = client.getItemContainer(InventoryID.INV);
+		if (container == null)
+		{
+			return totals;
+		}
+		for (Item item : container.getItems())
+		{
+			if (item.getId() <= 0 || item.getQuantity() <= 0)
+			{
+				continue;
+			}
+			totals.merge(itemManager.canonicalize(item.getId()), (long) item.getQuantity(), Long::sum);
+		}
+		return totals;
+	}
+}
