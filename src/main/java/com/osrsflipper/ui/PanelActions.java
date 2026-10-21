@@ -24,4 +24,7 @@ public interface PanelActions
 	void useAlert(com.osrsflipper.api.DumpAlert alert);
 
 	void dismissAlert(String alertId);
+
+	/** day, week or month */
+	void chartPeriod(String period);
 }

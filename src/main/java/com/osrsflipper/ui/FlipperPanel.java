@@ -3,6 +3,7 @@ package com.osrsflipper.ui;
 import com.osrsflipper.api.DeviceStart;
 import com.osrsflipper.api.DumpAlert;
 import com.osrsflipper.api.Me;
+import com.osrsflipper.api.PriceHistory;
 import com.osrsflipper.api.Suggestion;
 import com.osrsflipper.auth.AuthState;
 import com.osrsflipper.tracking.Flip;
@@ -56,6 +57,17 @@ public class FlipperPanel extends PluginPanel
 	private final JButton whyButton = button("Why?", "Explain why this item was suggested");
 	private final JPanel feedbackRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
 
+	private final JPanel chartCard = card();
+	private final JLabel chartTitle = new JLabel();
+	private final JLabel chartError = new JLabel();
+	private final PriceChart chart = new PriceChart();
+	private final JButton[] periodButtons = {
+		button("Day", "Last 24 hours, 5-minute averages"),
+		button("Week", "Last 7 days, hourly averages"),
+		button("Month", "Last 30 days, hourly averages"),
+	};
+	private static final String[] PERIODS = {"day", "week", "month"};
+
 	private final JPanel alertList = new JPanel(new GridLayout(0, 1, 0, 4));
 	private final PanelActions actions;
 
@@ -84,6 +96,8 @@ public class FlipperPanel extends PluginPanel
 		header.add(announcements);
 		header.add(suggestionCard(actions));
 		header.add(gap());
+		header.add(chartCard(actions));
+		header.add(gap());
 		alertList.setOpaque(false);
 		alertList.setAlignmentX(LEFT_ALIGNMENT);
 		header.add(alertList);
@@ -100,6 +114,52 @@ public class FlipperPanel extends PluginPanel
 		showAccount(AuthState.SIGNED_OUT, null, null, null);
 		update(false, 0, 0, Collections.emptyList());
 		showSuggestion(false, null, null);
+		showChart(null, "day", null);
+	}
+
+	private JPanel chartCard(PanelActions actions)
+	{
+		chartTitle.setFont(FontManager.getRunescapeSmallFont());
+		chartTitle.setForeground(Color.WHITE);
+		chartError.setForeground(LOSS);
+		JPanel top = new JPanel(new BorderLayout());
+		top.setOpaque(false);
+		top.add(chartTitle, BorderLayout.CENTER);
+		JLabel legend = new JLabel("<html><font color='#FF9F40'>High</font> <font color='#4DA3FF'>Low</font></html>");
+		legend.setFont(FontManager.getRunescapeSmallFont());
+		top.add(legend, BorderLayout.EAST);
+		chartCard.add(top, BorderLayout.NORTH);
+		chartCard.add(chart, BorderLayout.CENTER);
+
+		JPanel bottom = new JPanel(new BorderLayout());
+		bottom.setOpaque(false);
+		JPanel periods = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+		periods.setOpaque(false);
+		for (int i = 0; i < PERIODS.length; i++)
+		{
+			final String period = PERIODS[i];
+			periodButtons[i].addActionListener(e -> actions.chartPeriod(period));
+			periods.add(periodButtons[i]);
+		}
+		bottom.add(periods, BorderLayout.NORTH);
+		bottom.add(chartError, BorderLayout.SOUTH);
+		chartCard.add(bottom, BorderLayout.SOUTH);
+		return chartCard;
+	}
+
+	/** Shows the chart, or hides the card when there is no item to chart. */
+	public void showChart(PriceHistory history, String period, String error)
+	{
+		chartCard.setVisible(history != null || error != null);
+		chartTitle.setText(history == null || history.name == null ? "Price history" : html(history.name));
+		chart.setHistory(history);
+		chartError.setText(error == null ? "" : html(error));
+		for (int i = 0; i < PERIODS.length; i++)
+		{
+			periodButtons[i].setEnabled(!PERIODS[i].equals(period));
+		}
+		revalidate();
+		repaint();
 	}
 
 	private JPanel accountCard(PanelActions actions)

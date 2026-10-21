@@ -12,6 +12,7 @@ import com.osrsflipper.ge.GrandExchangeWidgets;
 import com.osrsflipper.market.AlertController;
 import com.osrsflipper.market.ConfirmGuard;
 import com.osrsflipper.market.GuardState;
+import com.osrsflipper.market.ChartController;
 import com.osrsflipper.market.PriceCache;
 import com.osrsflipper.ge.OfferHotkeys;
 import com.osrsflipper.suggestion.SuggestionController;
@@ -145,6 +146,7 @@ public class OsrsFlipperPlugin extends Plugin
 	private Notifier notifier;
 
 	private FlipperPanel panel;
+	private ChartController chart;
 	private NavigationButton navButton;
 	private TradeStore store;
 
@@ -183,6 +185,8 @@ public class OsrsFlipperPlugin extends Plugin
 		sessionStartMillis = System.currentTimeMillis();
 
 		suggestions.setOnChange(this::updateSuggestionPanel);
+		chart = new ChartController(api, clientThread::invokeLater);
+		chart.setOnChange(this::updateChartPanel);
 		overlayManager.add(highlightOverlay);
 		keyManager.registerKeyListener(hotkeys);
 
@@ -274,11 +278,16 @@ public class OsrsFlipperPlugin extends Plugin
 		if (auth.getState() == AuthState.SIGNED_IN && client.getGameState() == GameState.LOGGED_IN)
 		{
 			prices.want(pricedItems());
+			chart.tick(config.priceChart() ? chartItem() : null, now);
 			if (config.dumpAlerts() && me != null && me.accountPremium() && accountHash != -1)
 			{
 				alerts.poll(accountHash, coins(), config.minProfit(), config.f2pOnly(),
 					client.getWorldType().contains(WorldType.MEMBERS), this::onNewAlert, this::updateAlertPanel);
 			}
+		}
+		else
+		{
+			chart.tick(null, now);
 		}
 		updateGuard();
 		if (now - lastUsageMillis >= USAGE_MILLIS)
@@ -486,6 +495,26 @@ public class OsrsFlipperPlugin extends Plugin
 			ids.add(current.itemId);
 		}
 		return ids;
+	}
+
+	/** The item being set up in the GE, otherwise the suggested item. */
+	private Integer chartItem()
+	{
+		if (ge.isSetupOpen() && ge.setupItemId() > 0)
+		{
+			return ge.setupItemId();
+		}
+		Suggestion current = suggestions.getCurrent();
+		return current == null ? null : current.itemId;
+	}
+
+	/** Client thread. */
+	private void updateChartPanel()
+	{
+		final com.osrsflipper.api.PriceHistory history = chart.getHistory();
+		final String period = chart.getPeriod();
+		final String error = chart.getError();
+		SwingUtilities.invokeLater(() -> panel.showChart(history, period, error));
 	}
 
 	/** Client thread. Works out whether the offer being set up looks like a typo. */
@@ -731,6 +760,13 @@ public class OsrsFlipperPlugin extends Plugin
 				alerts.dismiss(alertId);
 				updateAlertPanel();
 			});
+		}
+
+		@Override
+		public void chartPeriod(String period)
+		{
+			usage.add("panel.chart_" + period);
+			clientThread.invokeLater(() -> chart.setPeriod(period));
 		}
 
 		@Override

@@ -328,4 +328,16 @@ public interface OsrsFlipperConfig extends Config
 	{
 		return 25;
 	}
+
+	@ConfigItem(
+		keyName = "priceChart",
+		name = "Price chart",
+		description = "Chart the price of the item you're setting up an offer for, or the suggested item.",
+		section = trackingSection,
+		position = 3
+	)
+	default boolean priceChart()
+	{
+		return true;
+	}
 }
