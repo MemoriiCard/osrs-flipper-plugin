@@ -2,17 +2,23 @@ package com.osrsflipper;
 
 import com.google.gson.Gson;
 import com.google.inject.Provides;
+import com.osrsflipper.api.Suggestion;
+import com.osrsflipper.ge.OfferHotkeys;
+import com.osrsflipper.suggestion.SuggestionController;
 import com.osrsflipper.tracking.AccountTrades;
 import com.osrsflipper.tracking.Flip;
 import com.osrsflipper.tracking.OfferSnapshot;
 import com.osrsflipper.tracking.OfferStatus;
 import com.osrsflipper.tracking.TradeStore;
 import com.osrsflipper.ui.FlipperPanel;
+import com.osrsflipper.ui.HighlightOverlay;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
@@ -22,23 +28,28 @@ import net.runelite.api.GameState;
 import net.runelite.api.GrandExchangeOffer;
 import net.runelite.api.GrandExchangeOfferState;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.GameTick;
 import net.runelite.api.events.GrandExchangeOfferChanged;
+import net.runelite.api.events.ItemContainerChanged;
+import net.runelite.api.gameval.InventoryID;
 import net.runelite.client.RuneLite;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.input.KeyManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.ImageUtil;
 
 @Slf4j
 @PluginDescriptor(
 	name = "OSRS Flipper",
-	description = "Tracks your Grand Exchange flips and profit",
+	description = "Grand Exchange flip suggestions, highlights and profit tracking",
 	tags = {"grand exchange", "ge", "flipping", "merching", "profit", "trading"}
 )
 public class OsrsFlipperPlugin extends Plugin
@@ -67,6 +78,21 @@ public class OsrsFlipperPlugin extends Plugin
 	@Inject
 	private ScheduledExecutorService executor;
 
+	@Inject
+	private OverlayManager overlayManager;
+
+	@Inject
+	private KeyManager keyManager;
+
+	@Inject
+	private SuggestionController suggestions;
+
+	@Inject
+	private HighlightOverlay highlightOverlay;
+
+	@Inject
+	private OfferHotkeys hotkeys;
+
 	private FlipperPanel panel;
 	private NavigationButton navButton;
 	private TradeStore store;
@@ -82,7 +108,7 @@ public class OsrsFlipperPlugin extends Plugin
 	protected void startUp()
 	{
 		store = new TradeStore(gson, new File(RuneLite.RUNELITE_DIR, "osrs-flipper"));
-		panel = new FlipperPanel();
+		panel = new FlipperPanel(() -> clientThread.invokeLater(suggestions::skip));
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "nav_icon.png");
 		navButton = NavigationButton.builder()
 			.tooltip("OSRS Flipper")
@@ -93,8 +119,13 @@ public class OsrsFlipperPlugin extends Plugin
 		clientToolbar.addNavigation(navButton);
 		sessionStartMillis = System.currentTimeMillis();
 
+		suggestions.setOnChange(this::updateSuggestionPanel);
+		overlayManager.add(highlightOverlay);
+		keyManager.registerKeyListener(hotkeys);
+
 		clientThread.invokeLater(() ->
 		{
+			updateSuggestionPanel();
 			lastGameState = client.getGameState();
 			if (lastGameState == GameState.LOGGED_IN)
 			{
@@ -108,6 +139,10 @@ public class OsrsFlipperPlugin extends Plugin
 	protected void shutDown()
 	{
 		clientToolbar.removeNavigation(navButton);
+		overlayManager.remove(highlightOverlay);
+		keyManager.unregisterKeyListener(hotkeys);
+		suggestions.setOnChange(() -> { });
+		clientThread.invokeLater(suggestions::reset);
 		saveAsync();
 		trades = null;
 		accountHash = -1;
@@ -136,6 +171,7 @@ public class OsrsFlipperPlugin extends Plugin
 			{
 				trades = null;
 				accountHash = -1;
+				suggestions.reset();
 				updatePanel();
 			}
 		}
@@ -143,8 +179,27 @@ public class OsrsFlipperPlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onGameTick(GameTick event)
+	{
+		Map<Integer, Integer> holdings = trades == null
+			? Collections.emptyMap()
+			: trades.getMatcher().getHoldings();
+		suggestions.tick(holdings);
+	}
+
+	@Subscribe
+	public void onItemContainerChanged(ItemContainerChanged event)
+	{
+		if (event.getContainerId() == InventoryID.INV)
+		{
+			suggestions.invalidate();
+		}
+	}
+
+	@Subscribe
 	public void onGrandExchangeOfferChanged(GrandExchangeOfferChanged event)
 	{
+		suggestions.invalidate();
 		if (!config.trackTrades())
 		{
 			return;
@@ -163,6 +218,11 @@ public class OsrsFlipperPlugin extends Plugin
 	{
 		if (OsrsFlipperConfig.GROUP.equals(event.getGroup()))
 		{
+			clientThread.invokeLater(() ->
+			{
+				suggestions.invalidate();
+				updateSuggestionPanel();
+			});
 			updatePanel();
 		}
 	}
@@ -266,6 +326,15 @@ public class OsrsFlipperPlugin extends Plugin
 		final long allTimeProfit = allTime;
 		final boolean loggedIn = current != null;
 		SwingUtilities.invokeLater(() -> panel.update(loggedIn, sessionProfit, allTimeProfit, recent));
+	}
+
+	/** Runs on the client thread. */
+	private void updateSuggestionPanel()
+	{
+		final boolean enabled = config.suggestionsEnabled();
+		final Suggestion current = suggestions.getCurrent();
+		final String error = suggestions.getError();
+		SwingUtilities.invokeLater(() -> panel.showSuggestion(enabled, current, error));
 	}
 
 	static OfferStatus toStatus(GrandExchangeOfferState state)
