@@ -3,6 +3,7 @@ package com.osrsflipper.auth;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
+import com.osrsflipper.OsrsFlipperPlugin;
 import com.osrsflipper.api.DeviceStart;
 import com.osrsflipper.api.Tokens;
 import java.io.IOException;
@@ -75,7 +76,12 @@ public class AuthSession
 	@Inject
 	public AuthSession(OkHttpClient http, Gson gson, ScheduledExecutorService executor)
 	{
-		this.http = http;
+		// Every request says which plugin version sent it, so the server can ask outdated copies to update.
+		this.http = http.newBuilder()
+			.addInterceptor(chain -> chain.proceed(chain.request().newBuilder()
+				.header("X-Plugin-Version", OsrsFlipperPlugin.VERSION)
+				.build()))
+			.build();
 		this.gson = gson;
 		this.executor = executor;
 	}
@@ -555,6 +561,10 @@ public class AuthSession
 		if (code == 429)
 		{
 			return "Too many requests. Wait a minute and try again.";
+		}
+		if (code == 426)
+		{
+			return "This version of OSRS Flipper is out of date. Update it and restart RuneLite.";
 		}
 		return "The server returned an error (" + code + ").";
 	}

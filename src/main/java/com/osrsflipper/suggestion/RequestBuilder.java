@@ -71,6 +71,22 @@ public final class RequestBuilder
 	}
 
 	/** Parses "4151, 11802,abc" into [4151, 11802], ignoring anything that isn't an item ID. */
+	/** The blocked-items setting with one more item ID on the end. */
+	public static String withItemId(String text, int itemId)
+	{
+		List<Integer> ids = parseItemIds(text);
+		if (!ids.contains(itemId) && ids.size() < MAX_BLOCKED)
+		{
+			ids.add(itemId);
+		}
+		StringBuilder out = new StringBuilder();
+		for (int id : ids)
+		{
+			out.append(out.length() == 0 ? "" : ",").append(id);
+		}
+		return out.toString();
+	}
+
 	static List<Integer> parseItemIds(String text)
 	{
 		List<Integer> ids = new ArrayList<>();

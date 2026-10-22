@@ -15,6 +15,7 @@ import com.osrsflipper.market.GuardState;
 import com.osrsflipper.market.ChartController;
 import com.osrsflipper.market.PriceCache;
 import com.osrsflipper.ge.OfferHotkeys;
+import com.osrsflipper.suggestion.RequestBuilder;
 import com.osrsflipper.suggestion.SuggestionController;
 import com.osrsflipper.sync.TradeSync;
 import com.osrsflipper.sync.UsageCounter;
@@ -80,7 +81,7 @@ public class OsrsFlipperPlugin extends Plugin
 {
 	/** Ticks after login during which RuneLite's EMPTY slot events are not trusted. */
 	private static final int LOGIN_BURST_TICKS = 2;
-	static final String VERSION = "0.4.1";
+	public static final String VERSION = "0.5.0";
 	private static final long HELLO_MILLIS = 5 * 60_000;
 	private static final long SYNC_MILLIS = 30_000;
 	private static final long USAGE_MILLIS = 10 * 60_000;
@@ -99,6 +100,9 @@ public class OsrsFlipperPlugin extends Plugin
 
 	@Inject
 	private OsrsFlipperConfig config;
+
+	@Inject
+	private ConfigManager configManager;
 
 	@Inject
 	private Gson gson;
@@ -741,6 +745,22 @@ public class OsrsFlipperPlugin extends Plugin
 		{
 			usage.add("panel.skip");
 			clientThread.invokeLater(suggestions::skip);
+		}
+
+		@Override
+		public void block()
+		{
+			usage.add("panel.block");
+			clientThread.invokeLater(() ->
+			{
+				Integer itemId = suggestions.blockableItemId();
+				if (itemId != null)
+				{
+					configManager.setConfiguration(OsrsFlipperConfig.GROUP, "blockedItems",
+						RequestBuilder.withItemId(config.blockedItems(), itemId));
+					suggestions.skip();
+				}
+			});
 		}
 
 		@Override

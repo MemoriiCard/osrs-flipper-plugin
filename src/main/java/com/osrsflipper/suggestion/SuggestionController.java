@@ -223,6 +223,12 @@ public class SuggestionController
 		return false;
 	}
 
+	/** The item the Block button would block: the current buy suggestion's, or null. */
+	public Integer blockableItemId()
+	{
+		return current != null && current.itemId != null && current.is(Suggestion.BUY) ? current.itemId : null;
+	}
+
 	/** Thumbs up (1) or down (-1) on the current suggestion. */
 	public void rate(int rating)
 	{
@@ -236,7 +242,7 @@ public class SuggestionController
 	{
 		RequestBuilder.Settings s = new RequestBuilder.Settings();
 		s.risk = config.riskLevel().name().toLowerCase(Locale.ROOT);
-		s.timeframeMinutes = config.timeframeMinutes();
+		s.timeframeMinutes = config.checkIn().minutes;
 		s.f2pOnly = config.f2pOnly();
 		s.blockedItems = config.blockedItems();
 		s.minProfit = config.minProfit();
