@@ -69,7 +69,10 @@ public class FlipperPanel extends PluginPanel
 	private final ThemedButton goodButton = button("Good", "Rate this suggestion as good", ThemedButton.Style.GHOST);
 	private final ThemedButton badButton = button("Bad", "Rate this suggestion as bad", ThemedButton.Style.GHOST);
 	private final ThemedButton whyButton = button("Why?", "Explain why this item was suggested", ThemedButton.Style.GHOST);
-	private final JPanel feedbackRow = row();
+	/** Skip and Block on one row, the advanced view's ratings on a second, so nothing is cut off. */
+	private final JPanel feedbackRow = column();
+	private final JPanel actionRow = row();
+	private final JPanel rateRow = row();
 	private String suggestionAction;
 
 	private final JPanel alertList = column();
@@ -254,11 +257,13 @@ public class FlipperPanel extends PluginPanel
 			showExplanation("Asking...");
 			actions.explain();
 		});
-		feedbackRow.add(skipButton);
-		feedbackRow.add(blockButton);
-		feedbackRow.add(goodButton);
-		feedbackRow.add(badButton);
-		feedbackRow.add(whyButton);
+		actionRow.add(skipButton);
+		actionRow.add(blockButton);
+		rateRow.add(goodButton);
+		rateRow.add(badButton);
+		rateRow.add(whyButton);
+		stack(feedbackRow, actionRow, 4);
+		stack(feedbackRow, rateRow, 0);
 		suggestionCard.add(feedbackRow, BorderLayout.SOUTH);
 
 		painters.add(this::recolorSuggestion);
@@ -369,6 +374,8 @@ public class FlipperPanel extends PluginPanel
 		cancelButton.setVisible(state == AuthState.LINKING);
 		websiteButton.setVisible(state == AuthState.SIGNED_IN);
 		signOutButton.setVisible(state == AuthState.SIGNED_IN);
+		// Until sign-in finishes there's nothing to suggest; the getting-started steps say what to do.
+		suggestionCard.setVisible(state == AuthState.SIGNED_IN);
 
 		String plan = null;
 		switch (state)
@@ -498,6 +505,7 @@ public class FlipperPanel extends PluginPanel
 		goodButton.setVisible(advanced && rateable);
 		badButton.setVisible(advanced && rateable);
 		whyButton.setVisible(advanced && hasItem && suggestion.is(Suggestion.BUY));
+		rateRow.setVisible(goodButton.isVisible() || whyButton.isVisible());
 		feedbackRow.setVisible(hasItem);
 		if (changed)
 		{
