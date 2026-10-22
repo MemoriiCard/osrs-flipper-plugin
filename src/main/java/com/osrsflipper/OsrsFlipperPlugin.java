@@ -80,7 +80,7 @@ public class OsrsFlipperPlugin extends Plugin
 {
 	/** Ticks after login during which RuneLite's EMPTY slot events are not trusted. */
 	private static final int LOGIN_BURST_TICKS = 2;
-	static final String VERSION = "0.4.0";
+	static final String VERSION = "0.4.1";
 	private static final long HELLO_MILLIS = 5 * 60_000;
 	private static final long SYNC_MILLIS = 30_000;
 	private static final long USAGE_MILLIS = 10 * 60_000;

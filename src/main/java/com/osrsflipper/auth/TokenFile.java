@@ -13,6 +13,7 @@ import java.nio.file.StandardCopyOption;
 /**
  * Keeps the refresh token in a file only this computer's user can read. Access tokens are never
  * written to disk, and the token is kept out of RuneLite's config so it never syncs to a profile.
+ * The token is saved with the server that issued it, so it is never sent anywhere else.
  */
 public class TokenFile
 {
@@ -21,9 +22,10 @@ public class TokenFile
 	private final Gson gson;
 	private final File directory;
 
-	static class Stored
+	public static class Stored
 	{
-		String refreshToken;
+		public String refreshToken;
+		public String server;
 	}
 
 	public TokenFile(Gson gson, File directory)
@@ -32,8 +34,8 @@ public class TokenFile
 		this.directory = directory;
 	}
 
-	/** The saved refresh token, or null when signed out or the file can't be read. */
-	public String load()
+	/** The saved refresh token and its server, or null when signed out or the file can't be read. */
+	public Stored load()
 	{
 		File file = new File(directory, NAME);
 		if (!file.exists())
@@ -43,7 +45,9 @@ public class TokenFile
 		try (Reader reader = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8))
 		{
 			Stored stored = gson.fromJson(reader, Stored.class);
-			return stored == null || stored.refreshToken == null || stored.refreshToken.isEmpty() ? null : stored.refreshToken;
+			boolean usable = stored != null && stored.refreshToken != null && !stored.refreshToken.isEmpty()
+				&& stored.server != null;
+			return usable ? stored : null;
 		}
 		catch (IOException | JsonParseException e)
 		{
@@ -51,7 +55,7 @@ public class TokenFile
 		}
 	}
 
-	public void save(String refreshToken) throws IOException
+	public void save(String refreshToken, String server) throws IOException
 	{
 		if (!directory.exists() && !directory.mkdirs())
 		{
@@ -59,6 +63,7 @@ public class TokenFile
 		}
 		Stored stored = new Stored();
 		stored.refreshToken = refreshToken;
+		stored.server = server;
 		File tmp = new File(directory, NAME + ".tmp");
 		try (Writer writer = Files.newBufferedWriter(tmp.toPath(), StandardCharsets.UTF_8))
 		{

@@ -55,6 +55,8 @@ public class AuthSession
 	private String accessToken;
 	private long accessExpiresAt;
 	private String refreshToken;
+	/** The server that issued the tokens. They are only ever sent there. */
+	private String tokenServer;
 	private boolean refreshing;
 	private final List<Waiter> waiting = new ArrayList<>();
 
@@ -83,7 +85,9 @@ public class AuthSession
 		this.tokenFile = file;
 		this.baseUrl = baseUrl;
 		this.onChange = onChange;
-		refreshToken = file.load();
+		TokenFile.Stored stored = file.load();
+		refreshToken = stored == null ? null : stored.refreshToken;
+		tokenServer = stored == null ? null : stored.server;
 		state = refreshToken == null ? AuthState.SIGNED_OUT : AuthState.SIGNED_IN;
 	}
 
@@ -101,7 +105,19 @@ public class AuthSession
 
 	public synchronized AuthState getState()
 	{
+		// After the server address changes the saved sign-in belongs to another server, so it reads
+		// as signed out until the player signs in again.
+		if (state == AuthState.SIGNED_IN && !boundTo(server()))
+		{
+			return AuthState.SIGNED_OUT;
+		}
 		return state;
+	}
+
+	/** Holds the lock. */
+	private boolean boundTo(String server)
+	{
+		return server != null && server.equals(tokenServer);
 	}
 
 	/** The code to approve while linking, or null. */
@@ -234,7 +250,7 @@ public class AuthSession
 			{
 				cancelPoll();
 				linking = null;
-				accept(tokens);
+				accept(tokens, server);
 			}
 			onChange.run();
 		}
@@ -250,7 +266,7 @@ public class AuthSession
 		String server = server();
 		synchronized (this)
 		{
-			token = accessToken;
+			token = boundTo(server) ? accessToken : null;
 			clearTokens();
 		}
 		if (token != null && server != null)
@@ -292,6 +308,14 @@ public class AuthSession
 		{
 			onError.accept("The server address in settings must start with https://.");
 			return;
+		}
+		synchronized (this)
+		{
+			if (!boundTo(server))
+			{
+				onError.accept("Sign in to OSRS Flipper first.");
+				return;
+			}
 		}
 		withToken(null, token -> enqueue(server, path, body, token, true, handler, onError), onError);
 	}
@@ -375,7 +399,7 @@ public class AuthSession
 		String token;
 		synchronized (this)
 		{
-			token = refreshToken;
+			token = boundTo(server) ? refreshToken : null;
 		}
 		if (server == null || token == null)
 		{
@@ -419,7 +443,7 @@ public class AuthSession
 					Tokens tokens = gson.fromJson(body.charStream(), Tokens.class);
 					synchronized (AuthSession.this)
 					{
-						accept(tokens);
+						accept(tokens, server);
 					}
 					finishRefresh(tokens.accessToken, null);
 				}
@@ -454,7 +478,7 @@ public class AuthSession
 	}
 
 	/** Holds the lock. */
-	private void accept(Tokens tokens)
+	private void accept(Tokens tokens, String server)
 	{
 		if (tokens == null || tokens.accessToken == null || tokens.refreshToken == null)
 		{
@@ -463,6 +487,7 @@ public class AuthSession
 		accessToken = tokens.accessToken;
 		accessExpiresAt = System.currentTimeMillis() + Math.max(0, tokens.expiresIn * 1000L - EXPIRY_MARGIN_MILLIS);
 		refreshToken = tokens.refreshToken;
+		tokenServer = server;
 		state = AuthState.SIGNED_IN;
 		final String toSave = refreshToken;
 		final TokenFile file = tokenFile;
@@ -470,7 +495,7 @@ public class AuthSession
 		{
 			try
 			{
-				file.save(toSave);
+				file.save(toSave, server);
 			}
 			catch (IOException e)
 			{
@@ -487,6 +512,7 @@ public class AuthSession
 		accessToken = null;
 		accessExpiresAt = 0;
 		refreshToken = null;
+		tokenServer = null;
 		state = AuthState.SIGNED_OUT;
 		if (tokenFile != null)
 		{
