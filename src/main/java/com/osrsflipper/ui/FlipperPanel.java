@@ -65,6 +65,7 @@ public class FlipperPanel extends PluginPanel
 	private final JLabel suggestionError = new JLabel();
 	private final JLabel explanation = new JLabel();
 	private final ThemedButton skipButton = button("Skip", "Get a different suggestion", ThemedButton.Style.SECONDARY);
+	private final ThemedButton blockButton = button("Block", "Never suggest this item again. Undo it in settings under Blocked items.", ThemedButton.Style.GHOST);
 	private final ThemedButton goodButton = button("Good", "Rate this suggestion as good", ThemedButton.Style.GHOST);
 	private final ThemedButton badButton = button("Bad", "Rate this suggestion as bad", ThemedButton.Style.GHOST);
 	private final ThemedButton whyButton = button("Why?", "Explain why this item was suggested", ThemedButton.Style.GHOST);
@@ -234,6 +235,7 @@ public class FlipperPanel extends PluginPanel
 		suggestionCard.add(text, BorderLayout.CENTER);
 
 		skipButton.addActionListener(e -> actions.skip());
+		blockButton.addActionListener(e -> actions.block());
 		goodButton.addActionListener(e ->
 		{
 			actions.rate(1);
@@ -253,6 +255,7 @@ public class FlipperPanel extends PluginPanel
 			actions.explain();
 		});
 		feedbackRow.add(skipButton);
+		feedbackRow.add(blockButton);
 		feedbackRow.add(goodButton);
 		feedbackRow.add(badButton);
 		feedbackRow.add(whyButton);
@@ -402,8 +405,11 @@ public class FlipperPanel extends PluginPanel
 				break;
 			case SIGNED_OUT:
 			default:
-				accountTitle.setText("Not signed in");
-				accountDetail.setText(html("Sign in to get suggestions and keep your history on the website."));
+				accountTitle.setText("Get started");
+				accountDetail.setText(steps(
+					"Press Sign in. A page opens in your browser.",
+					"Sign in there with email or Discord, then approve the code shown here.",
+					"Open the Grand Exchange. Your first suggestion appears below."));
 				break;
 		}
 		planPill.set(plan, "PREMIUM".equals(plan) ? theme.accent : theme.muted);
@@ -488,6 +494,7 @@ public class FlipperPanel extends PluginPanel
 		boolean hasItem = enabled && suggestion != null && suggestion.itemId != null;
 		boolean rateable = hasItem && suggestion.suggestionId != null;
 		skipButton.setVisible(hasItem);
+		blockButton.setVisible(hasItem && suggestion.is(Suggestion.BUY));
 		goodButton.setVisible(advanced && rateable);
 		badButton.setVisible(advanced && rateable);
 		whyButton.setVisible(advanced && hasItem && suggestion.is(Suggestion.BUY));
@@ -677,6 +684,18 @@ public class FlipperPanel extends PluginPanel
 	private static final int CARD_TEXT_WIDTH = 150;
 
 	/** Wraps text for a card. Server text is escaped so it can't inject Swing HTML. */
+	/** A short numbered list, escaped like {@link #html(String)}. */
+	static String steps(String... lines)
+	{
+		StringBuilder out = new StringBuilder("<html><body style='width:" + CARD_TEXT_WIDTH + "px'>");
+		for (int i = 0; i < lines.length; i++)
+		{
+			out.append(i == 0 ? "" : "<br>").append(i + 1).append(". ")
+				.append(lines[i].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"));
+		}
+		return out.append("</body></html>").toString();
+	}
+
 	static String html(String text)
 	{
 		return html(text, CARD_TEXT_WIDTH);

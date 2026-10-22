@@ -28,6 +28,35 @@ public interface OsrsFlipperConfig extends Config
 		ADVANCED
 	}
 
+	/** How often the player comes back to their offers. */
+	enum CheckIn
+	{
+		MINUTES_5("Every 5 minutes", 5),
+		MINUTES_15("Every 15 minutes", 15),
+		MINUTES_30("Every 30 minutes", 30),
+		HOUR_1("Every hour", 60),
+		HOURS_2("Every 2 hours", 120),
+		HOURS_4("Every 4 hours", 240),
+		HOURS_8("Every 8 hours", 480),
+		HOURS_12("Every 12 hours", 720),
+		DAY_1("Once a day", 1440);
+
+		private final String label;
+		public final int minutes;
+
+		CheckIn(String label, int minutes)
+		{
+			this.label = label;
+			this.minutes = minutes;
+		}
+
+		@Override
+		public String toString()
+		{
+			return label;
+		}
+	}
+
 	@ConfigSection(
 		name = "Suggestions",
 		description = "What kind of flips to suggest",
@@ -110,17 +139,16 @@ public interface OsrsFlipperConfig extends Config
 		return RiskLevel.MEDIUM;
 	}
 
-	@Range(min = 5, max = 10080)
 	@ConfigItem(
-		keyName = "timeframeMinutes",
-		name = "Check offers every (minutes)",
-		description = "How often you come back to adjust offers. Short times suggest fast flips; long times suggest patient offers with wider margins.",
+		keyName = "checkIn",
+		name = "I check my offers",
+		description = "How often you come back to adjust offers. Often suggests fast flips; rarely suggests patient offers with wider margins and buy limits that last.",
 		section = suggestionSection,
 		position = 2
 	)
-	default int timeframeMinutes()
+	default CheckIn checkIn()
 	{
-		return 30;
+		return CheckIn.MINUTES_30;
 	}
 
 	@Range(min = 0, max = 7)
@@ -174,8 +202,8 @@ public interface OsrsFlipperConfig extends Config
 
 	@ConfigItem(
 		keyName = "blockedItems",
-		name = "Blocked item IDs",
-		description = "Comma-separated item IDs never to suggest.",
+		name = "Blocked items",
+		description = "Item IDs never to suggest, separated by commas. The Block button on a suggestion adds to this list; delete an ID to allow that item again.",
 		section = suggestionSection,
 		position = 7
 	)

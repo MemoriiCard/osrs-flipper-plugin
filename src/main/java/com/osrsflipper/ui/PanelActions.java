@@ -15,6 +15,9 @@ public interface PanelActions
 
 	void skip();
 
+	/** Never suggest the current item again. */
+	void block();
+
 	/** 1 for good, -1 for bad. */
 	void rate(int rating);
 

@@ -3,6 +3,7 @@ package com.osrsflipper.suggestion;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import com.osrsflipper.OsrsFlipperConfig;
 import com.osrsflipper.api.SuggestionRequest;
 import java.util.Arrays;
 import java.util.Collections;
@@ -17,6 +18,22 @@ public class RequestBuilderTest
 	{
 		assertEquals(Arrays.asList(4151, 11802), RequestBuilder.parseItemIds("4151, 11802,abc 4151 -3"));
 		assertTrue(RequestBuilder.parseItemIds(null).isEmpty());
+	}
+
+	@Test
+	public void blockAppendsOnce()
+	{
+		assertEquals("4151", RequestBuilder.withItemId("", 4151));
+		assertEquals("4151,11802", RequestBuilder.withItemId("4151, junk", 11802));
+		assertEquals("4151,11802", RequestBuilder.withItemId("4151,11802", 4151));
+	}
+
+	@Test
+	public void checkInPresetsCoverFiveMinutesToADay()
+	{
+		assertEquals(5, OsrsFlipperConfig.CheckIn.values()[0].minutes);
+		OsrsFlipperConfig.CheckIn[] all = OsrsFlipperConfig.CheckIn.values();
+		assertEquals(1440, all[all.length - 1].minutes);
 	}
 
 	@Test
