@@ -41,7 +41,7 @@ If you play on a legacy (non-Jagex) account, skip this step and log in normally.
 Put the `.jar` file somewhere handy and run, from a terminal in that folder:
 
 ```
-java -ea -jar osrs-flipper-0.3.0-all.jar
+java -ea -jar osrs-flipper-0.5.0-all.jar
 ```
 
 (Use the file's actual name. On Windows you can paste this into PowerShell after shift+right-clicking
@@ -58,10 +58,12 @@ the folder and choosing **Open PowerShell window here**.)
 Play as you normally would and flip with it. Things especially worth reporting:
 
 - A suggestion that lost money or never filled. Say what the item was, roughly when, and your
-  **Risk** and **Timeframe** settings.
+  **Risk level** and **I check my offers** settings.
 - A highlight or hotkey that pointed at the wrong thing.
 - Anything confusing in the side panel or on the website.
-- Use the **Good** and **Bad** buttons on suggestions. They're recorded, so they help even without a
+- Press **Block** on items you never want suggested; undo it in settings under **Blocked items**.
+- Use the **Good** and **Bad** buttons on suggestions (Advanced view). They're recorded, so they help even without a
   note.
 
-Your trades sync to the website, so the dashboard there shows exactly what happened.
+Your trades sync to the website, so the dashboard there shows exactly what happened. The website's
+**Help** page answers the common questions.
