@@ -18,6 +18,14 @@ public class GeTaxTest
 	public void capsAtFiveMillionPerItem()
 	{
 		assertEquals(5_000_000L, GeTax.perItem(2_147_000_000L));
-		assertEquals(10_000_000L, GeTax.total(2_147_000_000L, 2));
+		assertEquals(10_000_000L, GeTax.total(4151, 2_147_000_000L, 2));
+	}
+
+	@Test
+	public void bondsAndToolsAreExempt()
+	{
+		assertEquals(0, GeTax.perItem(13190, 9_000_000L));
+		assertEquals(0, GeTax.total(2347, 1000, 5));
+		assertEquals(20, GeTax.perItem(4151, 1000));
 	}
 }

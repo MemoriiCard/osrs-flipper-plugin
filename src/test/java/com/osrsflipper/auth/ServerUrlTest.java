@@ -29,8 +29,9 @@ public class ServerUrlTest
 		File dir = Files.createTempDirectory("flipper-auth").toFile();
 		TokenFile file = new TokenFile(new Gson(), dir);
 		assertNull(file.load());
-		file.save("refresh-123");
-		assertEquals("refresh-123", file.load());
+		file.save("refresh-123", "https://api.example.com");
+		assertEquals("refresh-123", file.load().refreshToken);
+		assertEquals("https://api.example.com", file.load().server);
 		file.clear();
 		assertNull(file.load());
 	}

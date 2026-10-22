@@ -30,7 +30,7 @@ public class Flip
 		this.sellPrice = sellPrice;
 		this.buyTimeMillis = buyTimeMillis;
 		this.sellTimeMillis = sellTimeMillis;
-		this.tax = GeTax.total(sellPrice, quantity);
+		this.tax = GeTax.total(itemId, sellPrice, quantity);
 		this.profit = sellPrice * quantity - tax - buyCost;
 	}
 }
