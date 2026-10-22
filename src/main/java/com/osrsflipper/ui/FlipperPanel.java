@@ -691,7 +691,6 @@ public class FlipperPanel extends PluginPanel
 	/** Text width inside a card, so long lines wrap instead of running off the panel. */
 	private static final int CARD_TEXT_WIDTH = 150;
 
-	/** Wraps text for a card. Server text is escaped so it can't inject Swing HTML. */
 	/** A short numbered list, escaped like {@link #html(String)}. */
 	static String steps(String... lines)
 	{
@@ -704,6 +703,7 @@ public class FlipperPanel extends PluginPanel
 		return out.append("</body></html>").toString();
 	}
 
+	/** Wraps text for a card. Server text is escaped so it can't inject Swing HTML. */
 	static String html(String text)
 	{
 		return html(text, CARD_TEXT_WIDTH);
