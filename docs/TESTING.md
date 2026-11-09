@@ -1,4 +1,4 @@
-# Testing OSRS Flipper before it's on the Plugin Hub
+# Testing GP Genius before it's on the Plugin Hub
 
 Until the Plugin Hub approves the plugin, testers run a copy of RuneLite with the plugin built in.
 It's the normal RuneLite client plus this plugin, nothing else.
@@ -7,10 +7,10 @@ It's the normal RuneLite client plus this plugin, nothing else.
 
 1. Once, set the beta server address: on GitHub open the repository's **Settings → Secrets and variables →
    Actions → Variables**, and add `FLIPPER_SERVER_URL` with your server's address (for example
-   `https://osrsflipper.gg`).
+   `https://gpgenius.gg`).
 2. Open the **Actions** tab, choose **Tester release**, and click **Run workflow** on `main`. (Pushing a tag
    such as `v0.5.1` does the same.)
-3. A few minutes later a new release appears under **Releases** with `OSRS-Flipper-Beta-Windows.zip`, the
+3. A few minutes later a new release appears under **Releases** with `GP-Genius-Beta-Windows.zip`, the
    `.jar` for Mac and Linux, and their SHA-256 checksums. The website's **Download** page links to the latest
    release, so testers always get the newest one.
 4. Invite testers from the website's **Admin → Invites**. Opening the link makes them testers with every
@@ -40,11 +40,11 @@ and delete `.runelite/credentials.properties`.
 If you play on a legacy (non-Jagex) account, skip this step and log in normally.
 
 ### 3. Start the test client
-Unzip `OSRS-Flipper-Beta-Windows.zip` and double-click **Start OSRS Flipper Beta**. On Mac or Linux,
-run `java -ea -jar osrs-flipper-beta.jar` in the folder you downloaded it to.
+Unzip `GP-Genius-Beta-Windows.zip` and double-click **Start GP Genius Beta**. On Mac or Linux,
+run `java -ea -jar gp-genius-beta.jar` in the folder you downloaded it to.
 
 ### 4. Sign in
-Open the **OSRS Flipper** side panel from the sidebar. Read the data notice, click **Agree & sign in**,
+Open the **GP Genius** side panel from the sidebar. Read the data notice, click **Agree & sign in**,
 and approve the code on the web page that opens. The release already points at the beta server; you
 don't need to change **Server URL**.
 

@@ -26,7 +26,7 @@ dependencies {
 	testImplementation group: 'net.runelite', name: 'jshell', version: runeLiteVersion
 }
 
-group = 'com.osrsflipper'
+group = 'com.gpgenius'
 version = '0.5.0'
 
 tasks.withType(JavaCompile).configureEach {
@@ -35,14 +35,14 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 // Tester builds point at the beta server out of the box: ./gradlew shadowJar -PserverUrl=https://your.domain
-// writes com/osrsflipper/server.properties, which becomes the Server URL setting's default.
+// writes com/gpgenius/server.properties, which becomes the Server URL setting's default.
 def serverUrlDir = layout.buildDirectory.dir('generated/server-url')
 tasks.register('serverUrlResource') {
 	def url = project.findProperty('serverUrl') ?: ''
 	inputs.property('serverUrl', url)
 	outputs.dir(serverUrlDir)
 	doLast {
-		def dir = serverUrlDir.get().dir('com/osrsflipper').asFile
+		def dir = serverUrlDir.get().dir('com/gpgenius').asFile
 		dir.mkdirs()
 		def file = new File(dir, 'server.properties')
 		if (url) {
@@ -56,11 +56,11 @@ sourceSets.main.resources.srcDir(serverUrlDir)
 tasks.named('processResources') { dependsOn 'serverUrlResource' }
 
 // A runnable RuneLite with this plugin built in, for testers before the Plugin Hub has it:
-// ./gradlew shadowJar, then java -ea -jar build/libs/osrs-flipper-<version>-all.jar
+// ./gradlew shadowJar, then java -ea -jar build/libs/gp-genius-<version>-all.jar
 tasks.register('shadowJar', Jar) {
 	dependsOn configurations.testRuntimeClasspath
 	manifest {
-		attributes('Main-Class': 'com.osrsflipper.OsrsFlipperPluginTest', 'Multi-Release': true)
+		attributes('Main-Class': 'com.gpgenius.GpGeniusPluginTest', 'Multi-Release': true)
 	}
 
 	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
