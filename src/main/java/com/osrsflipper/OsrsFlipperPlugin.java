@@ -7,6 +7,7 @@ import com.osrsflipper.api.Me;
 import com.osrsflipper.api.Suggestion;
 import com.osrsflipper.auth.AuthSession;
 import com.osrsflipper.auth.AuthState;
+import com.osrsflipper.auth.DataConsent;
 import com.osrsflipper.auth.TokenFile;
 import com.osrsflipper.ge.GrandExchangeWidgets;
 import com.osrsflipper.market.AlertController;
@@ -269,7 +270,8 @@ public class OsrsFlipperPlugin extends Plugin
 		suggestions.tick(holdings, trades == null ? Collections.emptyMap() : trades.getSlots());
 
 		long now = System.currentTimeMillis();
-		if (auth.getState() == AuthState.SIGNED_IN && trades != null)
+		boolean connected = auth.getState() == AuthState.SIGNED_IN && consented();
+		if (connected && trades != null)
 		{
 			if (!helloInFlight && now - lastHelloMillis >= HELLO_MILLIS)
 			{
@@ -280,7 +282,7 @@ public class OsrsFlipperPlugin extends Plugin
 				syncTrades();
 			}
 		}
-		if (auth.getState() == AuthState.SIGNED_IN && client.getGameState() == GameState.LOGGED_IN)
+		if (connected && client.getGameState() == GameState.LOGGED_IN)
 		{
 			prices.want(pricedItems());
 			chart.tick(config.priceChart() ? chartItem() : null, now);
@@ -349,6 +351,10 @@ public class OsrsFlipperPlugin extends Plugin
 	{
 		if (OsrsFlipperConfig.GROUP.equals(event.getGroup()))
 		{
+			if (DataConsent.CONFIG_KEY.equals(event.getKey()))
+			{
+				clientThread.invokeLater(this::updateAccountPanel);
+			}
 			if ("theme".equals(event.getKey()))
 			{
 				SwingUtilities.invokeLater(() -> panel.setTheme(config.theme()));
@@ -650,10 +656,21 @@ public class OsrsFlipperPlugin extends Plugin
 	private void flushUsage()
 	{
 		Map<String, Integer> counts = usage.drain();
-		if (!counts.isEmpty() && auth.getState() == AuthState.SIGNED_IN)
+		if (!counts.isEmpty() && auth.getState() == AuthState.SIGNED_IN && consented())
 		{
 			api.usage(counts);
 		}
+	}
+
+	/** Whether the player agreed to the current data notice. Nothing is sent to the server until they do. */
+	private boolean consented()
+	{
+		return DataConsent.agreed(config.dataConsent());
+	}
+
+	private void agreeToNotice()
+	{
+		configManager.setConfiguration(OsrsFlipperConfig.GROUP, DataConsent.CONFIG_KEY, DataConsent.agreedValue());
 	}
 
 	private String playerName()
@@ -669,7 +686,8 @@ public class OsrsFlipperPlugin extends Plugin
 		final Me current = me;
 		final String error = accountError;
 		final com.osrsflipper.api.DeviceStart linking = auth.getLinking();
-		SwingUtilities.invokeLater(() -> panel.showAccount(state, linking, current, error));
+		final boolean consented = consented();
+		SwingUtilities.invokeLater(() -> panel.showAccount(state, linking, current, error, consented));
 	}
 
 	/** Opens a page only if it's on the configured server, so the panel can't be made to open anything else. */
@@ -688,6 +706,7 @@ public class OsrsFlipperPlugin extends Plugin
 		@Override
 		public void signIn()
 		{
+			agreeToNotice();
 			usage.add("panel.sign_in");
 			auth.beginLink(
 				url -> SwingUtilities.invokeLater(() -> browse(url)),
@@ -700,6 +719,20 @@ public class OsrsFlipperPlugin extends Plugin
 			{
 				accountError = null;
 				updateAccountPanel();
+			});
+		}
+
+		@Override
+		public void agree()
+		{
+			agreeToNotice();
+			clientThread.invokeLater(() ->
+			{
+				lastHelloMillis = 0;
+				lastSyncMillis = 0;
+				suggestions.invalidate();
+				updateAccountPanel();
+				updateSuggestionPanel();
 			});
 		}
 

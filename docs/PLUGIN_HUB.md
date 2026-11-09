@@ -11,6 +11,7 @@ Checked against the Plugin Hub's rules as of October 2026. What's done, then wha
 - `icon.png` is 48 x 72.
 - No automation: highlights, colours and the guard only draw or reorder a menu entry. The hotkey writes
   a value into a GE prompt the player opened, on a key the player pressed, and the player confirms it.
+- A data notice in the side panel that the player agrees to before anything is sent to the server.
 - No data about other players; game accounts are identified by RuneLite's account hash only.
 - Tokens are stored outside RuneLite's config (so they never sync to a RuneLite profile) and only sent
   over HTTPS.
@@ -29,8 +30,9 @@ while it's in review. Each fix after that is a new commit hash in the same plugi
 
 1. **Deploy the backend** on its own domain with HTTPS (for example `api.<your domain>`), and set
    `FLIPPER_PUBLIC_BASE_URL`, `FLIPPER_SECRET_KEY` and the Stripe keys there.
-2. **Point the plugin at it:** change the default of `apiUrl` in `OsrsFlipperConfig` from
-   `http://localhost:8000` to the HTTPS address. The plugin refuses plain HTTP to anything but
+2. **Point the plugin at it:** change `ServerUrl.LOCAL`'s fallback (the default of `apiUrl`) from
+   `http://localhost:8000` to the HTTPS address. The Hub builds without `-PserverUrl`, so the tester
+   builds' baked-in address doesn't apply there. The plugin refuses plain HTTP to anything but
    localhost, so the default has to be HTTPS.
 3. **Test in-game** on a members and a free-to-play world: sign in, one full flip with highlights and
    the hotkey, a dump alert, the guard on a mistyped price, and logging out mid-offer.

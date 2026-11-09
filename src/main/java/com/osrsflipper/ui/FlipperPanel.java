@@ -6,6 +6,7 @@ import com.osrsflipper.api.Me;
 import com.osrsflipper.api.PriceHistory;
 import com.osrsflipper.api.Suggestion;
 import com.osrsflipper.auth.AuthState;
+import com.osrsflipper.auth.DataConsent;
 import com.osrsflipper.tracking.Flip;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -54,6 +55,7 @@ public class FlipperPanel extends PluginPanel
 	private final ThemedButton cancelButton = button("Cancel", null, ThemedButton.Style.GHOST);
 	private final ThemedButton websiteButton = button("Website", "Your history, charts and plan", ThemedButton.Style.SECONDARY);
 	private final ThemedButton signOutButton = button("Sign out", null, ThemedButton.Style.GHOST);
+	private final ThemedButton agreeButton = button("Agree", "Agree to the data notice and carry on", ThemedButton.Style.PRIMARY);
 	private final JPanel announcements = column();
 
 	private final RoundedPanel suggestionCard = card();
@@ -136,7 +138,7 @@ public class FlipperPanel extends PluginPanel
 			flipsHeading.setForeground(theme.muted);
 		});
 
-		showAccount(AuthState.SIGNED_OUT, null, null, null);
+		showAccount(AuthState.SIGNED_OUT, null, null, null, false);
 		update(false, 0, 0, Collections.emptyList());
 		showSuggestion(false, null, null);
 		showChart(null, "day", null);
@@ -195,7 +197,9 @@ public class FlipperPanel extends PluginPanel
 		cancelButton.addActionListener(e -> actions.cancelSignIn());
 		websiteButton.addActionListener(e -> actions.openWebsite());
 		signOutButton.addActionListener(e -> actions.signOut());
+		agreeButton.addActionListener(e -> actions.agree());
 		JPanel buttons = row();
+		buttons.add(agreeButton);
 		buttons.add(signInButton);
 		buttons.add(reopenButton);
 		buttons.add(cancelButton);
@@ -366,16 +370,19 @@ public class FlipperPanel extends PluginPanel
 	 * @param linking the code being approved, while signing in
 	 * @param me      plan and announcements, once the server has answered
 	 * @param error   why the last sign-in step failed, or null
+	 * @param consented whether the player has agreed to the current data notice
 	 */
-	public void showAccount(AuthState state, DeviceStart linking, Me me, String error)
+	public void showAccount(AuthState state, DeviceStart linking, Me me, String error, boolean consented)
 	{
+		signInButton.setText(consented ? "Sign in" : "Agree & sign in");
 		signInButton.setVisible(state == AuthState.SIGNED_OUT);
+		agreeButton.setVisible(state == AuthState.SIGNED_IN && !consented);
 		reopenButton.setVisible(state == AuthState.LINKING);
 		cancelButton.setVisible(state == AuthState.LINKING);
 		websiteButton.setVisible(state == AuthState.SIGNED_IN);
 		signOutButton.setVisible(state == AuthState.SIGNED_IN);
 		// Until sign-in finishes there's nothing to suggest; the getting-started steps say what to do.
-		suggestionCard.setVisible(state == AuthState.SIGNED_IN);
+		suggestionCard.setVisible(state == AuthState.SIGNED_IN && consented);
 
 		String plan = null;
 		switch (state)
@@ -385,7 +392,12 @@ public class FlipperPanel extends PluginPanel
 				accountDetail.setText(html("Approve this code on the page that opened in your browser."));
 				break;
 			case SIGNED_IN:
-				if (me == null)
+				if (!consented)
+				{
+					accountTitle.setText("Please review");
+					accountDetail.setText(html(DataConsent.NOTICE));
+				}
+				else if (me == null)
 				{
 					accountTitle.setText("Signed in");
 					accountDetail.setText("");
@@ -412,6 +424,12 @@ public class FlipperPanel extends PluginPanel
 				break;
 			case SIGNED_OUT:
 			default:
+				if (!consented)
+				{
+					accountTitle.setText("Before you sign in");
+					accountDetail.setText(html(DataConsent.NOTICE));
+					break;
+				}
 				accountTitle.setText("Get started");
 				accountDetail.setText(steps(
 					"Press Sign in. A page opens in your browser.",

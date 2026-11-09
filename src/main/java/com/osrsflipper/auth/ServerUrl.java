@@ -1,8 +1,11 @@
 package com.osrsflipper.auth;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Locale;
+import java.util.Properties;
 
 /**
  * Checks the server address before any token is sent to it. Only HTTPS is allowed, except to this
@@ -10,8 +13,36 @@ import java.util.Locale;
  */
 public final class ServerUrl
 {
+	static final String LOCAL = "http://localhost:8000";
+
+	/**
+	 * The Server URL setting's default. Tester builds bake the beta server in with
+	 * {@code ./gradlew shadowJar -PserverUrl=https://...}, which writes {@code server.properties};
+	 * otherwise it's this computer, for development.
+	 */
+	public static final String DEFAULT = defaultFrom(ServerUrl.class.getResourceAsStream("/com/osrsflipper/server.properties"));
+
 	private ServerUrl()
 	{
+	}
+
+	static String defaultFrom(InputStream in)
+	{
+		if (in == null)
+		{
+			return LOCAL;
+		}
+		try (InputStream stream = in)
+		{
+			Properties props = new Properties();
+			props.load(stream);
+			String url = normalize(props.getProperty("serverUrl"));
+			return url == null ? LOCAL : url;
+		}
+		catch (IOException e)
+		{
+			return LOCAL;
+		}
 	}
 
 	/** The address without a trailing slash, or null if it isn't allowed. */
