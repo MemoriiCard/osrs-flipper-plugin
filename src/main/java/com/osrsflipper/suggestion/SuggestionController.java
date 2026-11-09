@@ -6,6 +6,7 @@ import com.osrsflipper.api.Suggestion;
 import com.osrsflipper.api.SuggestionRequest;
 import com.osrsflipper.auth.AuthSession;
 import com.osrsflipper.auth.AuthState;
+import com.osrsflipper.auth.DataConsent;
 import com.osrsflipper.tracking.OfferSnapshot;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -129,7 +130,7 @@ public class SuggestionController
 		{
 			return;
 		}
-		if (auth.getState() != AuthState.SIGNED_IN)
+		if (auth.getState() != AuthState.SIGNED_IN || !DataConsent.agreed(config.dataConsent()))
 		{
 			if (current != null || error == null)
 			{

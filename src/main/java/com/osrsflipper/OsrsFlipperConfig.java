@@ -1,5 +1,8 @@
 package com.osrsflipper;
 
+import com.osrsflipper.auth.DataConsent;
+import com.osrsflipper.auth.ServerUrl;
+
 import java.awt.event.KeyEvent;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
@@ -92,6 +95,17 @@ public interface OsrsFlipperConfig extends Config
 		closedByDefault = true
 	)
 	String connectionSection = "connection";
+
+	@ConfigItem(
+		keyName = DataConsent.CONFIG_KEY,
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default String dataConsent()
+	{
+		return "";
+	}
 
 	@ConfigItem(
 		keyName = "theme",
@@ -233,7 +247,7 @@ public interface OsrsFlipperConfig extends Config
 	)
 	default String apiUrl()
 	{
-		return "http://localhost:8000";
+		return ServerUrl.DEFAULT;
 	}
 
 	@ConfigItem(

@@ -3,7 +3,11 @@ package com.osrsflipper.ui;
 /** What the side panel's buttons do. The plugin implements these; the panel only draws. */
 public interface PanelActions
 {
+	/** Agrees to the data notice, then starts signing in if signed out. */
 	void signIn();
+
+	/** Agrees to the data notice while already signed in (after the notice changed). */
+	void agree();
 
 	void reopenSignIn();
 

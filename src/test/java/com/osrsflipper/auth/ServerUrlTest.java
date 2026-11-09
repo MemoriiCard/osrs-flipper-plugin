@@ -24,6 +24,21 @@ public class ServerUrlTest
 	}
 
 	@Test
+	public void bakedInDefault()
+	{
+		assertEquals("https://flips.example.com", ServerUrl.defaultFrom(stream("serverUrl=https://flips.example.com/\n")));
+		// Anything that isn't HTTPS falls back to this computer rather than sending tokens in the clear.
+		assertEquals("http://localhost:8000", ServerUrl.defaultFrom(stream("serverUrl=http://flips.example.com\n")));
+		assertEquals("http://localhost:8000", ServerUrl.defaultFrom(stream("")));
+		assertEquals("http://localhost:8000", ServerUrl.defaultFrom(null));
+	}
+
+	private static java.io.InputStream stream(String text)
+	{
+		return new java.io.ByteArrayInputStream(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+	}
+
+	@Test
 	public void tokenFileRoundTrips() throws Exception
 	{
 		File dir = Files.createTempDirectory("flipper-auth").toFile();

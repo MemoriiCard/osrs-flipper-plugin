@@ -37,7 +37,9 @@ Premium unlocks every item and dump alerts. Plans are managed on the website.
 
 ## Privacy
 
-Signing in is optional, but suggestions need it. When signed in, the plugin sends your GE offers, the
+Signing in is optional, but suggestions need it. Before anything is sent, the side panel shows what
+is shared and the player clicks **Agree & sign in**; until then flips are tracked on this computer
+only. When signed in, the plugin sends your GE offers, the
 trades it tracked, the coins in your inventory, your character name and RuneLite's account ID to the
 OSRS Flipper server, which stores the account ID only in a scrambled form. It never sees your Jagex
 login or anything about other players. Turn off "Sync flips to website" to keep trades on your

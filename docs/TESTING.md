@@ -3,18 +3,20 @@
 Until the Plugin Hub approves the plugin, testers run a copy of RuneLite with the plugin built in.
 It's the normal RuneLite client plus this plugin, nothing else.
 
-## For Nick: getting the tester file
+## For Nick: publishing the tester client
 
-1. Open the repository's **Actions** tab on GitHub, then the latest green **Build** run on `main` (or
-   on the pull request you want to test).
-2. Under **Artifacts**, download **osrs-flipper-tester-jar** and unzip it. Inside is
-   `osrs-flipper-<version>-all.jar`.
-3. Send that file to your testers, along with your server address (for example
+1. Once, set the beta server address: on GitHub open the repository's **Settings → Secrets and variables →
+   Actions → Variables**, and add `FLIPPER_SERVER_URL` with your server's address (for example
    `https://osrsflipper.gg`).
-4. Give each tester premium from the admin panel once they've signed in: **Users**, find them, then
-   **Add free time** with the reason "Beta tester".
+2. Open the **Actions** tab, choose **Tester release**, and click **Run workflow** on `main`. (Pushing a tag
+   such as `v0.5.1` does the same.)
+3. A few minutes later a new release appears under **Releases** with `OSRS-Flipper-Beta-Windows.zip`, the
+   `.jar` for Mac and Linux, and their SHA-256 checksums. The website's **Download** page links to the latest
+   release, so testers always get the newest one.
+4. Invite testers from the website's **Admin → Invites**. Opening the link makes them testers with every
+   feature free.
 
-Rebuild and resend the file whenever a new version is merged.
+Run the workflow again whenever a new version is merged.
 
 ## For testers: one-time setup (about 10 minutes)
 
@@ -38,20 +40,13 @@ and delete `.runelite/credentials.properties`.
 If you play on a legacy (non-Jagex) account, skip this step and log in normally.
 
 ### 3. Start the test client
-Put the `.jar` file somewhere handy and run, from a terminal in that folder:
+Unzip `OSRS-Flipper-Beta-Windows.zip` and double-click **Start OSRS Flipper Beta**. On Mac or Linux,
+run `java -ea -jar osrs-flipper-beta.jar` in the folder you downloaded it to.
 
-```
-java -ea -jar osrs-flipper-0.5.0-all.jar
-```
-
-(Use the file's actual name. On Windows you can paste this into PowerShell after shift+right-clicking
-the folder and choosing **Open PowerShell window here**.)
-
-### 4. Point the plugin at the server
-1. In the test client, open settings (the wrench), search for **OSRS Flipper**.
-2. Open **Connection** and paste the server address Nick gave you into **Server URL**.
-3. Open the **OSRS Flipper** side panel from the sidebar, click **Sign in**, and approve the code on
-   the web page that opens.
+### 4. Sign in
+Open the **OSRS Flipper** side panel from the sidebar. Read the data notice, click **Agree & sign in**,
+and approve the code on the web page that opens. The release already points at the beta server; you
+don't need to change **Server URL**.
 
 ## What to try and report
 

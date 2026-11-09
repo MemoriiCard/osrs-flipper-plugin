@@ -34,6 +34,27 @@ tasks.withType(JavaCompile).configureEach {
 	options.release.set(11)
 }
 
+// Tester builds point at the beta server out of the box: ./gradlew shadowJar -PserverUrl=https://your.domain
+// writes com/osrsflipper/server.properties, which becomes the Server URL setting's default.
+def serverUrlDir = layout.buildDirectory.dir('generated/server-url')
+tasks.register('serverUrlResource') {
+	def url = project.findProperty('serverUrl') ?: ''
+	inputs.property('serverUrl', url)
+	outputs.dir(serverUrlDir)
+	doLast {
+		def dir = serverUrlDir.get().dir('com/osrsflipper').asFile
+		dir.mkdirs()
+		def file = new File(dir, 'server.properties')
+		if (url) {
+			file.text = "serverUrl=${url}\n"
+		} else {
+			file.delete()
+		}
+	}
+}
+sourceSets.main.resources.srcDir(serverUrlDir)
+tasks.named('processResources') { dependsOn 'serverUrlResource' }
+
 // A runnable RuneLite with this plugin built in, for testers before the Plugin Hub has it:
 // ./gradlew shadowJar, then java -ea -jar build/libs/osrs-flipper-<version>-all.jar
 tasks.register('shadowJar', Jar) {
