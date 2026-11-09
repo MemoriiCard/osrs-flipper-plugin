@@ -1,4 +1,4 @@
-# OSRS Flipper
+# GP Genius
 
 A RuneLite plugin that suggests Grand Exchange flips tuned to how you play, walks you through each
 offer, and tracks your profit.
@@ -41,9 +41,9 @@ Signing in is optional, but suggestions need it. Before anything is sent, the si
 is shared and the player clicks **Agree & sign in**; until then flips are tracked on this computer
 only. When signed in, the plugin sends your GE offers, the
 trades it tracked, the coins in your inventory, your character name and RuneLite's account ID to the
-OSRS Flipper server, which stores the account ID only in a scrambled form. It never sees your Jagex
+GP Genius server, which stores the account ID only in a scrambled form. It never sees your Jagex
 login or anything about other players. Turn off "Sync flips to website" to keep trades on your
-computer only. Tracked trades are also saved locally in `.runelite/osrs-flipper/`.
+computer only. Tracked trades are also saved locally in `.runelite/gp-genius/`.
 
 ## Rules this plugin follows
 
@@ -59,5 +59,5 @@ Requires Java 11.
 ./gradlew build                 # compile and run unit tests
 ```
 
-Run `OsrsFlipperPluginTest` from IntelliJ with VM option `-ea` to start RuneLite with the plugin loaded.
+Run `GpGeniusPluginTest` from IntelliJ with VM option `-ea` to start RuneLite with the plugin loaded.
 For a local backend, set **Connection > Server URL** to `http://localhost:8000`.

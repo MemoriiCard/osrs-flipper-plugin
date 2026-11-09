@@ -38,7 +38,7 @@ while it's in review. Each fix after that is a new commit hash in the same plugi
    the hotkey, a dump alert, the guard on a mistyped price, and logging out mid-offer.
 4. **Merge the plugin PRs** into `main` in order, then take the commit hash of `main`.
 5. **Open a pull request on [runelite/plugin-hub](https://github.com/runelite/plugin-hub)** adding
-   `plugins/osrs-flipper` with:
+   `plugins/gp-genius` with:
 
    ```
    repository=https://github.com/MemoriiCard/osrs-flipper-plugin.git
