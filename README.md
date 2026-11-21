@@ -12,6 +12,23 @@ offer, and tracks your profit.
 - **One next step at a time.** Buy, sell, abort a stale offer, or wait. The plugin highlights the slot,
   button or item to click next, and a hotkey (E by default) fills the suggested price or quantity into
   the GE prompt. You still press every key and click every button.
+- **First-run setup.** Three questions (coins, how often you check, how much risk) pick one of four
+  presets: AFK overnight, Active session, Low-risk bank builder or F2P starter. Switch presets later
+  from the Setup button at the top of the panel. Until your first flip, every step shows its reason.
+- **Your limits.** Under *Limits (advanced)*: coins to flip with (the rest of your stack is never
+  counted), the most one item may take, an item price range, categories (runes, potions, food, ammo,
+  skilling supplies, gear) and favourite items to prefer. Pick any items, free-to-play only, or members
+  only.
+- **Welcome-back plan.** When you log in or come back to the GE after a check-in window away with
+  several free slots, the panel lists every step for them (sells first, then reprices, then buys) with
+  the coins used and the expected profit. You still do each step by hand; the highlight follows the
+  first one.
+- **Check-in reminders.** At most one notification per check-in window, summing up what happened:
+  "2 sells done, +184k. 1 offer to reprice. Next: Buy 30 x Abyssal whip." Choose what's included, set
+  quiet hours, and use RuneLite's own notification options (sound, flash, only when unfocused).
+- **Import from Flipping Utilities.** "Import history" under your flips copies the trades that plugin
+  saved for the logged-in character, so your profit and history don't start at zero. Imported flips
+  are labelled and never count towards how accurate suggestions are.
 - **Dump alerts (premium).** A notification when an item is sold far below its usual price, with the
   buy price, quantity and expected profit. "Use" makes it the current suggestion.
 - **Stale offer repricing.** An offer that sits longer than your check-in window at a price the market
@@ -48,7 +65,8 @@ computer only. Tracked trades are also saved locally in `.runelite/gp-genius/`.
 ## Rules this plugin follows
 
 It never clicks, types, or acts in game for you. Highlights and colours only draw; the hotkey fills a
-value into a prompt you opened, and you confirm it. This keeps to Jagex's third-party client guidelines
+value into a prompt you opened, and you confirm it. The welcome-back plan is a list to read, and
+reminders only tell you to come back; nothing is queued or sent for you. This keeps to Jagex's third-party client guidelines
 and RuneLite's Plugin Hub rules.
 
 ## Development

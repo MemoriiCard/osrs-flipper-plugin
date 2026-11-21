@@ -1,6 +1,7 @@
 package com.gpgenius.api;
 
 import com.google.gson.annotations.SerializedName;
+import java.util.List;
 
 /**
  * One next action from the server: buy, sell, abort or wait.
@@ -27,6 +28,18 @@ public class Suggestion
 	public String suggestionId;
 	/** False when the suggestion came from the free item pool. */
 	public boolean premium;
+	/** The next steps for every free slot, when asked for. The first step is this suggestion. */
+	public Plan plan;
+
+	/** A "welcome back" plan. Advice only: the player does each step by hand. */
+	public static class Plan
+	{
+		public List<Suggestion> steps;
+		@SerializedName("coins_used")
+		public long coinsUsed;
+		@SerializedName("expected_profit")
+		public long expectedProfit;
+	}
 
 	public boolean is(String type)
 	{

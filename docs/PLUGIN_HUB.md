@@ -11,6 +11,12 @@ Checked against the Plugin Hub's rules as of October 2026. What's done, then wha
 - `icon.png` is 48 x 72.
 - No automation: highlights, colours and the guard only draw or reorder a menu entry. The hotkey writes
   a value into a GE prompt the player opened, on a key the player pressed, and the player confirms it.
+- The welcome-back plan is text in the side panel. The plugin highlights one step at a time, as for a
+  single suggestion, and the player sets up, prices and confirms every offer. Nothing is queued.
+- Check-in reminders go through RuneLite's own `Notifier` and only describe what happened.
+- "Import history" reads Flipping Utilities' saved JSON for the logged-in character from
+  `.runelite/flipping/`, only when the player presses the button, off the client thread. It never writes
+  there.
 - A data notice in the side panel that the player agrees to before anything is sent to the server.
 - No data about other players; game accounts are identified by RuneLite's account hash only.
 - Tokens are stored outside RuneLite's config (so they never sync to a RuneLite profile) and only sent

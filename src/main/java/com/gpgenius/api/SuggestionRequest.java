@@ -17,6 +17,11 @@ public class SuggestionRequest
 	public String accountHash;
 	@SerializedName("display_name")
 	public String displayName;
+	/** Also send the next steps for every free slot. */
+	public boolean plan;
+	/** Buys from the plan the player is working through, so the list stays put. */
+	@SerializedName("planned_item_ids")
+	public List<Integer> plannedItemIds = new ArrayList<>();
 
 	public static class Profile
 	{
@@ -31,6 +36,20 @@ public class SuggestionRequest
 		public long minProfitPerFlip;
 		@SerializedName("allow_shared_items")
 		public boolean allowSharedItems;
+		/** Null means no cap. */
+		@SerializedName("coin_cap")
+		public Long coinCap;
+		@SerializedName("max_item_percent")
+		public Integer maxItemPercent;
+		@SerializedName("min_item_price")
+		public Long minItemPrice;
+		@SerializedName("max_item_price")
+		public Long maxItemPrice;
+		@SerializedName("favourite_item_ids")
+		public List<Integer> favouriteItemIds = new ArrayList<>();
+		public List<String> categories = new ArrayList<>();
+		@SerializedName("members_only")
+		public boolean membersOnly;
 	}
 
 	public static class Account

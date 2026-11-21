@@ -7,6 +7,7 @@ import com.gpgenius.api.PriceHistory;
 import com.gpgenius.api.Suggestion;
 import com.gpgenius.auth.AuthState;
 import com.gpgenius.auth.DataConsent;
+import com.gpgenius.setup.Preset;
 import com.gpgenius.tracking.Flip;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -77,6 +78,42 @@ public class FlipperPanel extends PluginPanel
 	private final JPanel rateRow = row();
 	private String suggestionAction;
 
+	private final ThemedButton favouriteButton = button("Favourite", "Prefer this item when it's a good flip. Undo it in settings under Favourite items.", ThemedButton.Style.GHOST);
+
+	private final RoundedPanel setupCard = card();
+	private final JLabel setupTitle = new JLabel("Set up GP Genius");
+	private final JLabel setupIntro = new JLabel();
+	private final JLabel[] setupQuestions = {new JLabel(), new JLabel(), new JLabel()};
+	private final ThemedButton[] coinButtons = new ThemedButton[Preset.Coins.values().length];
+	private final ThemedButton[] oftenButtons = new ThemedButton[Preset.Often.values().length];
+	private final ThemedButton[] appetiteButtons = new ThemedButton[Preset.Appetite.values().length];
+	private final ThemedButton[] presetButtons = new ThemedButton[Preset.values().length];
+	private final JLabel setupRecommendation = new JLabel();
+	private final JLabel presetHeading = new JLabel("Or pick a preset");
+	private final ThemedButton useSetupButton = button("Use this setup", "Save these settings. You can change any of them later.", ThemedButton.Style.PRIMARY);
+	private final ThemedButton skipSetupButton = button("Skip", "Keep the current settings", ThemedButton.Style.GHOST);
+	private final ThemedButton openSetupButton = button("Setup", "Answer three questions or pick a preset", ThemedButton.Style.GHOST);
+	private Preset.Coins coinsAnswer;
+	private Preset.Often oftenAnswer;
+	private Preset.Appetite appetiteAnswer;
+
+	private final RoundedPanel tourCard = card();
+	private final JLabel tourTitle = new JLabel("How it works");
+	private final JLabel tourText = new JLabel();
+	private final ThemedButton tourDoneButton = button("Got it", null, ThemedButton.Style.SECONDARY);
+
+	private final RoundedPanel planCard = card();
+	private final JLabel planTitle = new JLabel("Welcome back");
+	private final JLabel planSummary = new JLabel();
+	private final JPanel planSteps = column();
+	private final JLabel planNote = new JLabel();
+	private final ThemedButton hidePlanButton = button("Hide", "Go back to one step at a time", ThemedButton.Style.GHOST);
+	private Suggestion.Plan plan;
+
+	private final JPanel importRow = column();
+	private final ThemedButton importButton = button("Import history", "Copy past flips from the Flipping Utilities plugin on this computer. Imported flips count in your profit, never in how accurate suggestions are.", ThemedButton.Style.GHOST);
+	private final JLabel importMessage = new JLabel();
+
 	private final JPanel alertList = column();
 
 	private final RoundedPanel chartCard = card();
@@ -114,9 +151,12 @@ public class FlipperPanel extends PluginPanel
 		JPanel content = column();
 		content.add(header());
 		content.add(Box.createVerticalStrut(8));
+		content.add(setupCard(actions));
+		content.add(tourCard());
 		content.add(accountCard(actions));
 		content.add(Box.createVerticalStrut(8));
 		content.add(announcements);
+		content.add(planCard(actions));
 		content.add(suggestionCard(actions));
 		content.add(Box.createVerticalStrut(8));
 		content.add(alertList);
@@ -127,6 +167,7 @@ public class FlipperPanel extends PluginPanel
 		content.add(flipsHeading);
 		content.add(Box.createVerticalStrut(4));
 		content.add(flipList);
+		content.add(importRow(actions));
 		add(content, BorderLayout.NORTH);
 
 		painters.add(() ->
@@ -142,6 +183,9 @@ public class FlipperPanel extends PluginPanel
 		update(false, 0, 0, Collections.emptyList());
 		showSuggestion(false, null, null);
 		showChart(null, "day", null);
+		showSetup(false);
+		showPlan(null);
+		showImportMessage(null);
 		setTheme(theme);
 	}
 
@@ -157,6 +201,7 @@ public class FlipperPanel extends PluginPanel
 		// Rows built from data pick up the theme when rebuilt.
 		showAlerts(alerts);
 		update(loggedIn, sessionProfit, allTimeProfit, flips);
+		showPlan(plan);
 		recolorSuggestion();
 		revalidate();
 		repaint();
@@ -176,11 +221,293 @@ public class FlipperPanel extends PluginPanel
 		planPill.setFont(FontManager.getRunescapeSmallFont());
 		planPill.setVisible(false);
 		header.add(title, BorderLayout.WEST);
-		JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 2));
+		JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 2));
 		right.setOpaque(false);
+		openSetupButton.addActionListener(e -> showSetup(true));
+		right.add(openSetupButton);
 		right.add(planPill);
 		header.add(right, BorderLayout.EAST);
 		return header;
+	}
+
+	private JComponent setupCard(PanelActions actions)
+	{
+		JPanel text = column();
+		setupTitle.setFont(FontManager.getRunescapeBoldFont());
+		setupIntro.setText(html("Three quick questions. Change anything later in the plugin settings."));
+		setupQuestions[0].setText(html("Roughly how many coins will you flip with?"));
+		setupQuestions[1].setText(html("How often will you check your offers?"));
+		setupQuestions[2].setText(html("How much risk is OK?"));
+		stack(text, setupTitle, 2);
+		stack(text, setupIntro, 2);
+
+		Preset.Coins[] coins = Preset.Coins.values();
+		for (int i = 0; i < coins.length; i++)
+		{
+			final Preset.Coins answer = coins[i];
+			coinButtons[i] = button(answer.label, null, ThemedButton.Style.SEGMENT);
+			coinButtons[i].addActionListener(e ->
+			{
+				coinsAnswer = answer;
+				refreshSetup();
+			});
+		}
+		Preset.Often[] often = Preset.Often.values();
+		for (int i = 0; i < often.length; i++)
+		{
+			final Preset.Often answer = often[i];
+			oftenButtons[i] = button(answer.label, null, ThemedButton.Style.SEGMENT);
+			oftenButtons[i].addActionListener(e ->
+			{
+				oftenAnswer = answer;
+				refreshSetup();
+			});
+		}
+		Preset.Appetite[] appetite = Preset.Appetite.values();
+		for (int i = 0; i < appetite.length; i++)
+		{
+			final Preset.Appetite answer = appetite[i];
+			appetiteButtons[i] = button(answer.label, null, ThemedButton.Style.SEGMENT);
+			appetiteButtons[i].addActionListener(e ->
+			{
+				appetiteAnswer = answer;
+				refreshSetup();
+			});
+		}
+		stack(text, setupQuestions[0], 8);
+		stack(text, grid(coinButtons), 4);
+		stack(text, setupQuestions[1], 8);
+		stack(text, grid(oftenButtons), 4);
+		stack(text, setupQuestions[2], 8);
+		stack(text, grid(appetiteButtons), 4);
+		stack(text, setupRecommendation, 8);
+
+		useSetupButton.addActionListener(e ->
+		{
+			if (coinsAnswer != null && oftenAnswer != null && appetiteAnswer != null)
+			{
+				Preset preset = Preset.recommend(coinsAnswer, oftenAnswer, appetiteAnswer);
+				finishSetup(actions, Preset.settings(preset, oftenAnswer, appetiteAnswer));
+			}
+		});
+		skipSetupButton.addActionListener(e ->
+		{
+			actions.skipSetup();
+			showSetup(false);
+		});
+		JPanel buttons = row();
+		buttons.add(useSetupButton);
+		buttons.add(skipSetupButton);
+		stack(text, buttons, 6);
+
+		Preset[] presets = Preset.values();
+		for (int i = 0; i < presets.length; i++)
+		{
+			final Preset preset = presets[i];
+			presetButtons[i] = button(preset.label, preset.description, ThemedButton.Style.SECONDARY);
+			presetButtons[i].addActionListener(e -> finishSetup(actions, Preset.settings(preset, null, null)));
+		}
+		presetHeading.setFont(FontManager.getRunescapeSmallFont());
+		stack(text, presetHeading, 10);
+		stack(text, grid(presetButtons), 4);
+		setupCard.add(text, BorderLayout.CENTER);
+
+		painters.add(() ->
+		{
+			setupCard.setColors(theme.surface, theme.border);
+			setupCard.setStripe(theme.accent);
+			setupTitle.setForeground(theme.text);
+			setupIntro.setForeground(theme.muted);
+			for (JLabel q : setupQuestions)
+			{
+				q.setForeground(theme.text);
+			}
+			setupRecommendation.setForeground(theme.text);
+			presetHeading.setForeground(theme.muted);
+		});
+		refreshSetup();
+		return setupCard;
+	}
+
+	private void finishSetup(PanelActions actions, Preset.Settings settings)
+	{
+		actions.applySetup(settings);
+		showSetup(false);
+		tourCard.setVisible(true);
+		revalidate();
+		repaint();
+	}
+
+	private void refreshSetup()
+	{
+		select(coinButtons, coinsAnswer == null ? -1 : coinsAnswer.ordinal());
+		select(oftenButtons, oftenAnswer == null ? -1 : oftenAnswer.ordinal());
+		select(appetiteButtons, appetiteAnswer == null ? -1 : appetiteAnswer.ordinal());
+		boolean complete = coinsAnswer != null && oftenAnswer != null && appetiteAnswer != null;
+		useSetupButton.setEnabled(complete);
+		if (complete)
+		{
+			Preset preset = Preset.recommend(coinsAnswer, oftenAnswer, appetiteAnswer);
+			setupRecommendation.setText(html("Suggested: " + preset.label + ". " + preset.description));
+		}
+		setupRecommendation.setVisible(complete);
+		revalidate();
+	}
+
+	/** Shows or hides the first-run wizard. */
+	public void showSetup(boolean show)
+	{
+		setupCard.setVisible(show);
+		setupCard.setBorder(new EmptyBorder(10, 12, 10, 10));
+		openSetupButton.setVisible(!show);
+		if (show)
+		{
+			tourCard.setVisible(false);
+		}
+		revalidate();
+		repaint();
+	}
+
+	private JComponent tourCard()
+	{
+		JPanel text = column();
+		tourTitle.setFont(FontManager.getRunescapeBoldFont());
+		tourText.setText(steps(
+			"The card below shows one next step: buy, sell, abort an offer, or wait.",
+			"In the GE, the slot, button or item to click is highlighted. In a price or quantity box, your hotkey (E) fills in the suggested value.",
+			"You click and confirm everything yourself. Nothing is done for you.",
+			"Leave it and come back when a reminder arrives. If several slots are free, you get a plan for all of them."));
+		stack(text, tourTitle, 2);
+		stack(text, tourText, 4);
+		tourCard.add(text, BorderLayout.CENTER);
+		tourDoneButton.addActionListener(e ->
+		{
+			tourCard.setVisible(false);
+			revalidate();
+			repaint();
+		});
+		JPanel buttons = row();
+		buttons.add(tourDoneButton);
+		tourCard.add(buttons, BorderLayout.SOUTH);
+		tourCard.setVisible(false);
+		painters.add(() ->
+		{
+			tourCard.setColors(theme.surface, theme.border);
+			tourCard.setStripe(theme.accent);
+			tourTitle.setForeground(theme.text);
+			tourText.setForeground(theme.muted);
+		});
+		return tourCard;
+	}
+
+	private JComponent planCard(PanelActions actions)
+	{
+		JPanel text = column();
+		planTitle.setFont(FontManager.getRunescapeBoldFont());
+		planSummary.setFont(FontManager.getRunescapeSmallFont());
+		stack(text, planTitle, 2);
+		stack(text, planSummary, 2);
+		stack(text, planSteps, 6);
+		stack(text, planNote, 6);
+		planNote.setText(html("Do each step yourself, in order. The highlight follows step 1, and the list updates as you go."));
+		planCard.add(text, BorderLayout.CENTER);
+		hidePlanButton.addActionListener(e -> actions.dismissPlan());
+		JPanel buttons = row();
+		buttons.add(hidePlanButton);
+		planCard.add(buttons, BorderLayout.SOUTH);
+		painters.add(() ->
+		{
+			planCard.setColors(theme.surface, theme.border);
+			planCard.setStripe(theme.accent);
+			planTitle.setForeground(theme.text);
+			planSummary.setForeground(theme.profit);
+			planNote.setForeground(theme.muted);
+		});
+		return planCard;
+	}
+
+	/** The welcome-back plan: every step for the free slots, or null to hide it. */
+	public void showPlan(Suggestion.Plan plan)
+	{
+		this.plan = plan;
+		planSteps.removeAll();
+		boolean show = plan != null && plan.steps != null && plan.steps.size() > 1;
+		if (show)
+		{
+			planTitle.setText(html("Welcome back: " + plan.steps.size() + " steps"));
+			String summary = "Uses " + QuantityFormatter.quantityToStackSize(plan.coinsUsed) + " gp";
+			if (plan.expectedProfit > 0)
+			{
+				summary += ", about +" + QuantityFormatter.quantityToStackSize(plan.expectedProfit) + " gp";
+			}
+			planSummary.setText(summary);
+			for (int i = 0; i < plan.steps.size(); i++)
+			{
+				Suggestion step = plan.steps.get(i);
+				if (step == null)
+				{
+					continue;
+				}
+				JLabel line = new JLabel(html((i + 1) + ". " + step.headline()));
+				line.setFont(i == 0 ? FontManager.getRunescapeBoldFont() : FontManager.getRunescapeFont());
+				line.setForeground(i == 0 && step.action != null ? theme.action(step.action) : theme.text);
+				stack(planSteps, line, 2);
+			}
+		}
+		planCard.setVisible(show);
+		planCard.setBorder(new EmptyBorder(10, 12, 10, 10));
+		planSteps.revalidate();
+		revalidate();
+		repaint();
+	}
+
+	private JComponent importRow(PanelActions actions)
+	{
+		importMessage.setFont(FontManager.getRunescapeSmallFont());
+		importButton.addActionListener(e ->
+		{
+			importButton.setEnabled(false);
+			showImportMessage("Importing...");
+			actions.importHistory();
+		});
+		JPanel buttons = row();
+		buttons.add(importButton);
+		stack(importRow, buttons, 0);
+		stack(importRow, importMessage, 4);
+		importRow.setBorder(new EmptyBorder(8, 0, 0, 0));
+		painters.add(() -> importMessage.setForeground(theme.muted));
+		return importRow;
+	}
+
+	/** The result of the last import, or null to clear it. Re-enables the button. */
+	public void showImportMessage(String message)
+	{
+		importMessage.setText(message == null ? "" : html(message));
+		importMessage.setVisible(message != null);
+		if (!"Importing...".equals(message))
+		{
+			importButton.setEnabled(true);
+		}
+		revalidate();
+	}
+
+	private JPanel grid(ThemedButton[] buttons)
+	{
+		JPanel grid = new JPanel(new GridLayout(0, 2, 4, 4));
+		grid.setOpaque(false);
+		for (ThemedButton b : buttons)
+		{
+			grid.add(b);
+		}
+		return grid;
+	}
+
+	private static void select(ThemedButton[] buttons, int index)
+	{
+		for (int i = 0; i < buttons.length; i++)
+		{
+			buttons[i].setSelected(i == index);
+		}
 	}
 
 	private JComponent accountCard(PanelActions actions)
@@ -243,6 +570,11 @@ public class FlipperPanel extends PluginPanel
 
 		skipButton.addActionListener(e -> actions.skip());
 		blockButton.addActionListener(e -> actions.block());
+		favouriteButton.addActionListener(e ->
+		{
+			actions.favourite();
+			favouriteButton.setEnabled(false);
+		});
 		goodButton.addActionListener(e ->
 		{
 			actions.rate(1);
@@ -262,6 +594,7 @@ public class FlipperPanel extends PluginPanel
 			actions.explain();
 		});
 		actionRow.add(skipButton);
+		actionRow.add(favouriteButton);
 		actionRow.add(blockButton);
 		rateRow.add(goodButton);
 		rateRow.add(badButton);
@@ -498,7 +831,9 @@ public class FlipperPanel extends PluginPanel
 			{
 				profit = "+" + gp(suggestion.expectedProfit) + " est. profit";
 			}
-			if (suggestion.reason != null && (advanced || suggestion.is(Suggestion.WAIT) || suggestion.is(Suggestion.ABORT)))
+			// Until the first flip is done, every step comes with its reason, as part of the first-run tour.
+			boolean firstFlip = loggedIn && flips.isEmpty();
+			if (suggestion.reason != null && (advanced || firstFlip || suggestion.is(Suggestion.WAIT) || suggestion.is(Suggestion.ABORT)))
 			{
 				reason = suggestion.reason;
 			}
@@ -520,6 +855,7 @@ public class FlipperPanel extends PluginPanel
 		boolean rateable = hasItem && suggestion.suggestionId != null;
 		skipButton.setVisible(hasItem);
 		blockButton.setVisible(hasItem && suggestion.is(Suggestion.BUY));
+		favouriteButton.setVisible(hasItem && suggestion.is(Suggestion.BUY));
 		goodButton.setVisible(advanced && rateable);
 		badButton.setVisible(advanced && rateable);
 		whyButton.setVisible(advanced && hasItem && suggestion.is(Suggestion.BUY));
@@ -527,6 +863,7 @@ public class FlipperPanel extends PluginPanel
 		feedbackRow.setVisible(hasItem);
 		if (changed)
 		{
+			favouriteButton.setEnabled(true);
 			goodButton.setEnabled(true);
 			badButton.setEnabled(true);
 			whyButton.setEnabled(true);
@@ -620,6 +957,7 @@ public class FlipperPanel extends PluginPanel
 			stack(flipList, flipRow(flip), 4);
 			shown++;
 		}
+		importRow.setVisible(loggedIn);
 		flipList.revalidate();
 		flipList.repaint();
 	}

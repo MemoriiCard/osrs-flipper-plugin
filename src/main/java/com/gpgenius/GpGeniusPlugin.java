@@ -16,6 +16,9 @@ import com.gpgenius.market.GuardState;
 import com.gpgenius.market.ChartController;
 import com.gpgenius.market.PriceCache;
 import com.gpgenius.ge.OfferHotkeys;
+import com.gpgenius.history.FlippingUtilitiesImport;
+import com.gpgenius.notify.CheckInDigest;
+import com.gpgenius.setup.Preset;
 import com.gpgenius.suggestion.RequestBuilder;
 import com.gpgenius.suggestion.SuggestionController;
 import com.gpgenius.sync.TradeSync;
@@ -32,6 +35,7 @@ import com.gpgenius.ui.HighlightOverlay;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -151,6 +155,9 @@ public class GpGeniusPlugin extends Plugin
 	private Notifier notifier;
 
 	private FlipperPanel panel;
+	/** Client thread only. Groups news about the player's offers into one reminder per check-in. */
+	private final CheckInDigest digest = new CheckInDigest();
+	private boolean importInFlight;
 	private ChartController chart;
 	private NavigationButton navButton;
 	private TradeStore store;
@@ -174,11 +181,13 @@ public class GpGeniusPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
+		migrateSettings();
 		File dir = new File(RuneLite.RUNELITE_DIR, "gp-genius");
 		store = new TradeStore(gson, dir);
 		panel = new FlipperPanel(new Actions());
 		panel.setAdvanced(config.viewMode() == GpGeniusConfig.ViewMode.ADVANCED);
 		panel.setTheme(config.theme());
+		panel.showSetup(!config.setupDone());
 		auth.start(new TokenFile(gson, dir), config::apiUrl, () -> clientThread.invokeLater(this::onAuthChanged));
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "nav_icon.png");
 		navButton = NavigationButton.builder()
@@ -288,7 +297,8 @@ public class GpGeniusPlugin extends Plugin
 			chart.tick(config.priceChart() ? chartItem() : null, now);
 			if (config.dumpAlerts() && me != null && me.accountPremium() && accountHash != -1)
 			{
-				alerts.poll(accountHash, coins(), config.minProfit(), config.f2pOnly(),
+				alerts.poll(accountHash, coins(), config.minProfit(),
+					config.itemScope() == GpGeniusConfig.ItemScope.F2P,
 					client.getWorldType().contains(WorldType.MEMBERS), this::onNewAlert, this::updateAlertPanel);
 			}
 		}
@@ -297,6 +307,7 @@ public class GpGeniusPlugin extends Plugin
 			chart.tick(null, now);
 		}
 		updateGuard();
+		checkIn(now);
 		if (now - lastUsageMillis >= USAGE_MILLIS)
 		{
 			lastUsageMillis = now;
@@ -333,6 +344,10 @@ public class GpGeniusPlugin extends Plugin
 	public void onGrandExchangeOfferChanged(GrandExchangeOfferChanged event)
 	{
 		suggestions.invalidate();
+		boolean trusted = client.getGameState() == GameState.LOGGED_IN
+			&& client.getTickCount() - loginTick > LOGIN_BURST_TICKS;
+		digest.offerChanged(event.getSlot(), toStatus(event.getOffer().getState()),
+			trusted && config.remindCompleted(), System.currentTimeMillis());
 		if (!config.trackTrades())
 		{
 			return;
@@ -358,6 +373,10 @@ public class GpGeniusPlugin extends Plugin
 			if ("theme".equals(event.getKey()))
 			{
 				SwingUtilities.invokeLater(() -> panel.setTheme(config.theme()));
+			}
+			if ("setupDone".equals(event.getKey()) && !config.setupDone())
+			{
+				SwingUtilities.invokeLater(() -> panel.showSetup(true));
 			}
 			clientThread.invokeLater(() ->
 			{
@@ -397,6 +416,10 @@ public class GpGeniusPlugin extends Plugin
 		if (flip != null)
 		{
 			log.debug("Flip completed: {} x{} profit {}", flip.itemName, flip.quantity, flip.profit);
+			if (config.remindCompleted())
+			{
+				digest.flipProfit(flip.profit, System.currentTimeMillis());
+			}
 		}
 		if (trades.getTransactions().size() != before)
 		{
@@ -414,6 +437,10 @@ public class GpGeniusPlugin extends Plugin
 		accountHash = hash;
 		me = null;
 		lastHelloMillis = 0;
+		// The player is here now; the first reminder comes a check-in window later at the soonest.
+		digest.resetSlots();
+		digest.seen(System.currentTimeMillis());
+		suggestions.startPlan();
 		lastSyncMillis = 0;
 		try
 		{
@@ -486,7 +513,17 @@ public class GpGeniusPlugin extends Plugin
 		final boolean enabled = config.suggestionsEnabled();
 		final Suggestion current = suggestions.getCurrent();
 		final String error = suggestions.getError();
-		SwingUtilities.invokeLater(() -> panel.showSuggestion(enabled, current, error));
+		final Suggestion.Plan plan = enabled ? suggestions.getPlan() : null;
+		if (enabled && current != null && current.action != null)
+		{
+			digest.suggestion(current.action, current.name, current.headline(), config.remindReprice(),
+				config.remindNextStep(), System.currentTimeMillis());
+		}
+		SwingUtilities.invokeLater(() ->
+		{
+			panel.showSuggestion(enabled, current, error);
+			panel.showPlan(plan);
+		});
 	}
 
 	/** Items whose market price the slot colours and guard need: open offers, the offer being set up, the suggestion. */
@@ -543,6 +580,113 @@ public class GpGeniusPlugin extends Plugin
 				suggestions.getCurrent(), config.confirmGuardPercent());
 		}
 		guard.setReason(reason);
+	}
+
+	/** Client thread. Sends the check-in reminder when one is due; never while the player is at the GE. */
+	private void checkIn(long now)
+	{
+		boolean atGe = client.getGameState() == GameState.LOGGED_IN && ge.isOpen();
+		suggestions.noteGe(atGe, now);
+		if (atGe)
+		{
+			digest.seen(now);
+			return;
+		}
+		boolean quiet = config.quietHours()
+			&& CheckInDigest.inQuietHours(LocalTime.now().getHour(), config.quietStart(), config.quietEnd());
+		if (digest.due(now, config.checkIn().minutes * 60_000L, quiet))
+		{
+			notifier.notify(config.checkInNotification(), digest.drain(now));
+		}
+	}
+
+	/** Carries settings from older versions over to their replacements. */
+	private void migrateSettings()
+	{
+		if (config.f2pOnly())
+		{
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "itemScope", GpGeniusConfig.ItemScope.F2P);
+			configManager.unsetConfiguration(GpGeniusConfig.GROUP, "f2pOnly");
+		}
+	}
+
+	/** Client thread. Reads Flipping Utilities' saved trades for this character off the client thread, then merges them. */
+	private void importHistory()
+	{
+		if (trades == null || accountHash == -1)
+		{
+			SwingUtilities.invokeLater(() -> panel.showImportMessage("Log in first, on the character whose history you want."));
+			return;
+		}
+		if (importInFlight)
+		{
+			return;
+		}
+		final String name = playerName();
+		final File file = FlippingUtilitiesImport.fileFor(RuneLite.RUNELITE_DIR, name);
+		if (file == null)
+		{
+			SwingUtilities.invokeLater(() -> panel.showImportMessage("Wait until your character has loaded, then try again."));
+			return;
+		}
+		importInFlight = true;
+		final AccountTrades target = trades;
+		executor.execute(() ->
+		{
+			FlippingUtilitiesImport.Result result = null;
+			String failure = null;
+			if (!file.isFile())
+			{
+				failure = "No Flipping Utilities history found for " + name + " (looked for .runelite/flipping/"
+					+ file.getName() + ").";
+			}
+			else
+			{
+				try
+				{
+					result = FlippingUtilitiesImport.read(file);
+				}
+				catch (IOException e)
+				{
+					log.debug("Flipping Utilities import failed", e);
+					failure = e.getMessage();
+				}
+			}
+			final FlippingUtilitiesImport.Result read = result;
+			final String error = failure;
+			clientThread.invokeLater(() ->
+			{
+				importInFlight = false;
+				if (error != null || target != trades)
+				{
+					final String message = error != null ? error : "You logged out before the import finished.";
+					SwingUtilities.invokeLater(() -> panel.showImportMessage(message));
+					return;
+				}
+				for (Transaction t : read.trades)
+				{
+					if (t.itemName == null || t.itemName.isEmpty())
+					{
+						t.itemName = itemManager.getItemComposition(t.itemId).getName();
+					}
+				}
+				int added = trades.importHistory(read.trades);
+				usage.add("panel.import");
+				if (added > 0)
+				{
+					saveAsync();
+					updatePanel();
+					suggestions.invalidate();
+					lastSyncMillis = 0;
+				}
+				int already = read.trades.size() - added;
+				final String message = read.trades.isEmpty()
+					? "Flipping Utilities had no trades saved for " + name + "."
+					: String.format("Imported %,d trades from Flipping Utilities%s.", added,
+						already > 0 ? String.format(" (%,d were already here)", already) : "");
+				SwingUtilities.invokeLater(() -> panel.showImportMessage(message));
+			});
+		});
 	}
 
 	private long coins()
@@ -794,6 +938,53 @@ public class GpGeniusPlugin extends Plugin
 					suggestions.skip();
 				}
 			});
+		}
+
+		@Override
+		public void favourite()
+		{
+			usage.add("panel.favourite");
+			clientThread.invokeLater(() ->
+			{
+				Integer itemId = suggestions.blockableItemId();
+				if (itemId != null)
+				{
+					configManager.setConfiguration(GpGeniusConfig.GROUP, "favouriteItems",
+						RequestBuilder.withItemId(config.favouriteItems(), itemId));
+				}
+			});
+		}
+
+		@Override
+		public void importHistory()
+		{
+			clientThread.invokeLater(GpGeniusPlugin.this::importHistory);
+		}
+
+		@Override
+		public void applySetup(Preset.Settings settings)
+		{
+			usage.add("setup." + settings.preset.name().toLowerCase(java.util.Locale.ROOT));
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "riskLevel", settings.risk);
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "checkIn", settings.checkIn);
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "itemScope", settings.itemScope);
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "maxItemPercent", settings.maxItemPercent);
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "setupPreset", settings.preset.name());
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "setupDone", true);
+		}
+
+		@Override
+		public void skipSetup()
+		{
+			usage.add("setup.skip");
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "setupDone", true);
+		}
+
+		@Override
+		public void dismissPlan()
+		{
+			usage.add("panel.hide_plan");
+			clientThread.invokeLater(suggestions::dismissPlan);
 		}
 
 		@Override

@@ -34,4 +34,19 @@ public interface PanelActions
 
 	/** day, week or month */
 	void chartPeriod(String period);
+
+	/** Prefer the current item when it's a good flip. */
+	void favourite();
+
+	/** Copy past trades from the Flipping Utilities plugin's files on this computer. */
+	void importHistory();
+
+	/** Save the settings from the first-run wizard or a preset. */
+	void applySetup(com.gpgenius.setup.Preset.Settings settings);
+
+	/** Close the first-run wizard without changing settings. */
+	void skipSetup();
+
+	/** Hide the welcome-back plan and go back to one step at a time. */
+	void dismissPlan();
 }
