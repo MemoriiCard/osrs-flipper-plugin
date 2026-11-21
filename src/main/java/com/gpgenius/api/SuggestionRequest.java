@@ -31,6 +31,9 @@ public class SuggestionRequest
 		public long minProfitPerFlip;
 		@SerializedName("allow_shared_items")
 		public boolean allowSharedItems;
+		/** auto, hold, relist or cut. */
+		@SerializedName("loss_handling")
+		public String lossHandling = "auto";
 	}
 
 	public static class Account

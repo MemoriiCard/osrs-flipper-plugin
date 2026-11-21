@@ -498,9 +498,13 @@ public class FlipperPanel extends PluginPanel
 			{
 				profit = "+" + gp(suggestion.expectedProfit) + " est. profit";
 			}
-			if (suggestion.reason != null && (advanced || suggestion.is(Suggestion.WAIT) || suggestion.is(Suggestion.ABORT)))
+			if (suggestion.reason != null && (advanced || suggestion.loss || suggestion.is(Suggestion.WAIT) || suggestion.is(Suggestion.ABORT)))
 			{
 				reason = suggestion.reason;
+			}
+			for (String line : suggestion.details())
+			{
+				reason = reason.isEmpty() ? line : reason + "\n" + line;
 			}
 		}
 		suggestionAction = action;
@@ -730,7 +734,8 @@ public class FlipperPanel extends PluginPanel
 	static String html(String text, int width)
 	{
 		return "<html><body style='width:" + width + "px'>"
-			+ text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") + "</body></html>";
+			+ text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
+			+ "</body></html>";
 	}
 
 	private static String gp(long amount)

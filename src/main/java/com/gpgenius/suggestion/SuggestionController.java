@@ -249,6 +249,7 @@ public class SuggestionController
 		s.minProfit = config.minProfit();
 		s.reservedSlots = config.reservedSlots();
 		s.sellOnly = config.sellOnly();
+		s.lossHandling = config.lossHandling().name().toLowerCase(Locale.ROOT);
 		return s;
 	}
 

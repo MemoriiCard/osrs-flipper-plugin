@@ -39,6 +39,7 @@ public final class RequestBuilder
 		profile.f2pOnly = settings.f2pOnly;
 		profile.blockedItemIds = parseItemIds(settings.blockedItems);
 		profile.minProfitPerFlip = Math.max(0, settings.minProfit);
+		profile.lossHandling = settings.lossHandling;
 
 		SuggestionRequest.Account account = request.account;
 		account.coins = inventory.getOrDefault(Inventory.COINS, 0L);
@@ -126,6 +127,7 @@ public final class RequestBuilder
 		public int minProfit;
 		public int reservedSlots;
 		public boolean sellOnly;
+		public String lossHandling = "auto";
 	}
 
 	/** Item IDs used when reading the inventory. */

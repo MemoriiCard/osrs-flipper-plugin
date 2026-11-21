@@ -31,6 +31,28 @@ public interface GpGeniusConfig extends Config
 		ADVANCED
 	}
 
+	/** What to do with an item that would now sell for less than it cost. */
+	enum LossHandling
+	{
+		AUTO("Let GP Genius pick"),
+		HOLD("Hold until it recovers"),
+		RELIST("Relist at break-even"),
+		CUT("Sell now and take the loss");
+
+		private final String label;
+
+		LossHandling(String label)
+		{
+			this.label = label;
+		}
+
+		@Override
+		public String toString()
+		{
+			return label;
+		}
+	}
+
 	/** How often the player comes back to their offers. */
 	enum CheckIn
 	{
@@ -236,6 +258,18 @@ public interface GpGeniusConfig extends Config
 	default boolean allowSharedItems()
 	{
 		return false;
+	}
+
+	@ConfigItem(
+		keyName = "lossHandling",
+		name = "When a flip goes bad",
+		description = "What to suggest when an item would sell for less than you paid after tax. Hold and relist still switch to selling once the item has waited about twice your check-in time.",
+		section = suggestionSection,
+		position = 9
+	)
+	default LossHandling lossHandling()
+	{
+		return LossHandling.AUTO;
 	}
 
 	@ConfigItem(
