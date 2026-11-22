@@ -109,6 +109,10 @@ value into a prompt you opened, and you confirm it. The welcome-back plan is a l
 reminders only tell you to come back; nothing is queued or sent for you. This keeps to Jagex's third-party client guidelines
 and RuneLite's Plugin Hub rules.
 
+Suggestions are only shown for the character that is logged in. Each request remembers the account and
+character name it was sent for, and an answer that arrives after you log out, switch character or change
+name is dropped (`CharacterGuard`).
+
 ## Development
 
 Requires Java 11.

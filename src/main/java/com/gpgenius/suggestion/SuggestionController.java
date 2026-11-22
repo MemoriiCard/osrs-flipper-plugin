@@ -54,6 +54,7 @@ public class SuggestionController
 	private final PlanState plan = new PlanState();
 	private final SlotPlanState slotPlan = new SlotPlanState();
 	private final OvernightState overnight = new OvernightState();
+	private final CharacterGuard character = new CharacterGuard();
 	/** Whether the last tick had overnight mode on, to notice when it switches itself off. */
 	private boolean wasOvernight;
 
@@ -92,6 +93,7 @@ public class SuggestionController
 	public void reset()
 	{
 		generation++;
+		character.clear();
 		pinnedUntil = 0;
 		current = null;
 		error = null;
@@ -212,6 +214,22 @@ public class SuggestionController
 		{
 			return;
 		}
+		// Only ever suggest for the character that is logged in right now.
+		Player me = client.getLocalPlayer();
+		long hashNow = client.getAccountHash();
+		String nameNow = me == null ? null : me.getName();
+		if (!CharacterGuard.ready(hashNow, nameNow))
+		{
+			return;
+		}
+		if (current != null && !character.matches(hashNow, nameNow))
+		{
+			generation++;
+			current = null;
+			error = null;
+			dirty = true;
+			onChange.run();
+		}
 		if (auth.getState() != AuthState.SIGNED_IN || !DataConsent.agreed(config.dataConsent()))
 		{
 			if (current != null || error == null)
@@ -246,9 +264,9 @@ public class SuggestionController
 
 		SuggestionRequest request = RequestBuilder.build(settings(), offers(slots, now), inventory(), holdings,
 			client.getWorldType().contains(WorldType.MEMBERS), skips.active(now));
-		request.accountHash = Long.toString(client.getAccountHash());
-		Player player = client.getLocalPlayer();
-		request.displayName = player == null || player.getName() == null ? "" : player.getName();
+		request.accountHash = Long.toString(hashNow);
+		request.displayName = nameNow;
+		character.expect(hashNow, nameNow);
 		request.profile.allowSharedItems = config.allowSharedItems();
 		request.plan = plan.wanted();
 		request.plannedItemIds = plan.plannedItemIds();
@@ -283,6 +301,11 @@ public class SuggestionController
 		{
 			return;
 		}
+		Player me = client.getLocalPlayer();
+		if (!character.matches(client.getAccountHash(), me == null ? null : me.getName()))
+		{
+			return;
+		}
 		if (result == null)
 		{
 			slotPlan.failed();
@@ -299,6 +322,15 @@ public class SuggestionController
 			return;
 		}
 		inFlight = false;
+		Player me = client.getLocalPlayer();
+		if (!character.matches(client.getAccountHash(), me == null ? null : me.getName()))
+		{
+			// The player switched character (or logged out) while this was on its way: it isn't theirs.
+			current = null;
+			dirty = true;
+			onChange.run();
+			return;
+		}
 		if (suggestion != null)
 		{
 			current = suggestion;
