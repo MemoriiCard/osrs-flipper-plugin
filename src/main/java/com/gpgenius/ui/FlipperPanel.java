@@ -127,6 +127,21 @@ public class FlipperPanel extends PluginPanel
 	private final JLabel slotsNote = new JLabel();
 	private SlotPlan slotPlan;
 
+	private final RoundedPanel overnightCard = card();
+	private final JLabel overnightTitle = new JLabel("Logging off?");
+	private final JLabel overnightText = new JLabel();
+	private final JPanel overnightHours = row();
+	private final ThemedButton[] overnightHourButtons = new ThemedButton[com.gpgenius.suggestion.OvernightState.CHOICES.length];
+	private final ThemedButton overnightStart = button("Plan overnight", "Slower, safer offers for every free slot, sized to your coins and how long you'll be away. You still place each one.", ThemedButton.Style.SECONDARY);
+	private final ThemedButton overnightStop = button("Stop", "Back to normal suggestions", ThemedButton.Style.GHOST);
+	private int overnightChoice = com.gpgenius.suggestion.OvernightState.DEFAULT_HOURS;
+	private boolean overnightOn;
+	private boolean overnightAvailable;
+
+	private final ThemedButton dashboardButton = button("Trade dashboard", "Every trade you've made: times, prices, tax, gross and net profit, with charts", ThemedButton.Style.SECONDARY);
+	private final ThemedButton exportButton = button("Export CSV", "Save your trades as a spreadsheet file, tax and gross and net profit included", ThemedButton.Style.GHOST);
+	private final JLabel exportMessage = new JLabel();
+
 	private final JPanel importRow = column();
 	private final ThemedButton importButton = button("Import history", "Copy past flips from the Flipping Utilities plugin on this computer. Imported flips count in your profit, never in how accurate suggestions are.", ThemedButton.Style.GHOST);
 	private final JLabel importMessage = new JLabel();
@@ -216,6 +231,7 @@ public class FlipperPanel extends PluginPanel
 		content.add(goalCard(actions));
 		content.add(Box.createVerticalStrut(8));
 		content.add(planCard(actions));
+		content.add(overnightCard(actions));
 		content.add(slotsCard());
 		content.add(suggestionCard(actions));
 		content.add(Box.createVerticalStrut(8));
@@ -246,6 +262,8 @@ public class FlipperPanel extends PluginPanel
 		showSetup(false);
 		showPlan(null);
 		showSlots(null);
+		showOvernight(false, false, overnightChoice);
+		showExportMessage(null);
 		showImportMessage(null);
 		setTheme(theme);
 		textScale.install(this);
@@ -639,7 +657,8 @@ public class FlipperPanel extends PluginPanel
 		if (show)
 		{
 			int todo = plan.steps == null ? 0 : plan.steps.size();
-			slotsTitle.setText(html(todo == 0 ? "GE slots: all set" : "GE slots: " + todo + (todo == 1 ? " step" : " steps")));
+			String heading = plan.isOvernight() ? "Overnight plan" : "GE slots";
+			slotsTitle.setText(html(todo == 0 ? heading + ": all set" : heading + ": " + todo + (todo == 1 ? " step" : " steps")));
 			String summary = "";
 			if (plan.coinsUsed > 0)
 			{
@@ -679,8 +698,16 @@ public class FlipperPanel extends PluginPanel
 				}
 			}
 			String next = plan.nextCheckIn(java.time.ZoneId.systemDefault());
-			slotsNote.setText(html((next == null ? "" : "Next check-in around " + next + ". ")
-				+ "Do each step yourself, in order."));
+			if (plan.isOvernight())
+			{
+				slotsNote.setText(html((next == null ? "" : "Back around " + next + ". ")
+					+ "Do each step yourself, in order, then log off."));
+			}
+			else
+			{
+				slotsNote.setText(html((next == null ? "" : "Next check-in around " + next + ". ")
+					+ "Do each step yourself, in order."));
+			}
 		}
 		slotsCard.setVisible(show);
 		slotsCard.setBorder(new EmptyBorder(10, 12, 10, 10));
@@ -690,8 +717,103 @@ public class FlipperPanel extends PluginPanel
 		repaint();
 	}
 
+	private JComponent overnightCard(PanelActions actions)
+	{
+		JPanel text = column();
+		overnightTitle.setFont(FontManager.getRunescapeBoldFont());
+		overnightText.setFont(FontManager.getRunescapeSmallFont());
+		int[] choices = com.gpgenius.suggestion.OvernightState.CHOICES;
+		for (int i = 0; i < choices.length; i++)
+		{
+			final int hours = choices[i];
+			ThemedButton b = button(hours + "h", "Away for about " + hours + " hours", ThemedButton.Style.SEGMENT);
+			b.addActionListener(e ->
+			{
+				overnightChoice = hours;
+				showOvernight(overnightAvailable, overnightOn, overnightChoice);
+			});
+			overnightHourButtons[i] = b;
+			overnightHours.add(b);
+		}
+		overnightStart.addActionListener(e -> actions.startOvernight(overnightChoice));
+		overnightStop.addActionListener(e -> actions.stopOvernight());
+		JPanel buttons = row();
+		buttons.add(overnightStart);
+		buttons.add(overnightStop);
+		stack(text, overnightTitle, 2);
+		stack(text, overnightText, 2);
+		stack(text, overnightHours, 6);
+		stack(text, buttons, 6);
+		overnightCard.add(text, BorderLayout.CENTER);
+		painters.add(() ->
+		{
+			overnightCard.setColors(theme.surface, theme.border);
+			overnightCard.setStripe(theme.chartLow);
+			overnightTitle.setForeground(theme.text);
+			overnightText.setForeground(theme.muted);
+		});
+		return overnightCard;
+	}
+
+	/**
+	 * The overnight card. Hidden until the player is signed in with suggestions on.
+	 *
+	 * @param available whether overnight mode can be used right now
+	 * @param on        whether it is on
+	 * @param hours     hours away, shown as the selected choice
+	 */
+	public void showOvernight(boolean available, boolean on, int hours)
+	{
+		overnightAvailable = available;
+		overnightOn = on;
+		overnightChoice = hours;
+		overnightTitle.setText(html(on ? "Overnight mode: " + hours + "h away" : "Logging off?"));
+		overnightText.setText(html(on
+			? "Suggestions and the GE slot plan are set for a night away. Place each step, then log off."
+			: "Get slower, safer offers for every free slot, sized to your coins and the time away."));
+		int[] choices = com.gpgenius.suggestion.OvernightState.CHOICES;
+		for (int i = 0; i < choices.length; i++)
+		{
+			overnightHourButtons[i].setSelected(choices[i] == hours);
+		}
+		overnightHours.setVisible(!on);
+		overnightStart.setVisible(!on);
+		overnightStop.setVisible(on);
+		overnightCard.setVisible(available);
+		overnightCard.setBorder(new EmptyBorder(10, 12, 10, 10));
+		revalidate();
+		repaint();
+	}
+
+	/** A message under the export button, or null to clear it. Re-enables the button. */
+	public void showExportMessage(String message)
+	{
+		exportMessage.setText(message == null ? "" : html(message));
+		exportMessage.setVisible(message != null);
+		if (!"Exporting...".equals(message))
+		{
+			exportButton.setEnabled(true);
+		}
+		revalidate();
+	}
+
 	private JComponent importRow(PanelActions actions)
 	{
+		dashboardButton.addActionListener(e -> actions.openTradeDashboard());
+		exportButton.addActionListener(e ->
+		{
+			exportButton.setEnabled(false);
+			showExportMessage("Exporting...");
+			actions.exportTrades();
+		});
+		exportMessage.setFont(FontManager.getRunescapeSmallFont());
+		JPanel trades = row();
+		trades.add(dashboardButton);
+		trades.add(exportButton);
+		stack(importRow, trades, 0);
+		stack(importRow, exportMessage, 4);
+		painters.add(() -> exportMessage.setForeground(theme.muted));
+
 		importMessage.setFont(FontManager.getRunescapeSmallFont());
 		importButton.addActionListener(e ->
 		{
@@ -701,7 +823,7 @@ public class FlipperPanel extends PluginPanel
 		});
 		JPanel buttons = row();
 		buttons.add(importButton);
-		stack(importRow, buttons, 0);
+		stack(importRow, buttons, 6);
 		stack(importRow, importMessage, 4);
 		importRow.setBorder(new EmptyBorder(8, 0, 0, 0));
 		painters.add(() -> importMessage.setForeground(theme.muted));

@@ -27,6 +27,11 @@ public class SuggestionRequest
 	/** The saved profile in use, or null. Its preset and saved choices are applied on the server. */
 	@SerializedName("profile_id")
 	public String profileId;
+	/** "overnight" while the player is getting ready to log off; null (left out) otherwise. */
+	public String mode;
+	/** Hours the player will be away, for overnight mode. Null lets the server choose. */
+	@SerializedName("away_hours")
+	public Integer awayHours;
 	/** Let the player's goal pick the preset and check-in rhythm while it runs (when the goal allows it). */
 	@SerializedName("follow_goal")
 	public boolean followGoal = true;

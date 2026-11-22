@@ -46,13 +46,27 @@ public class FlipperApiClient
 		}, onError);
 	}
 
-	/** Links the game account to the player and returns their plan and announcements. */
 	/** The plan for every GE slot. Same body as a suggestion request. */
 	public void slots(SuggestionRequest body, Consumer<SlotPlan> onSuccess, Consumer<String> onError)
 	{
 		post("/v1/slots", body, SlotPlan.class, onSuccess, onError);
 	}
 
+	/** The player's own trades over the last {@code days}, with totals and chart series. */
+	public void history(int days, Long beforeId, Consumer<TradeHistory> onSuccess, Consumer<String> onError)
+	{
+		String path = "/v1/history?days=" + Math.max(1, Math.min(3650, days))
+			+ (beforeId == null ? "" : "&before_id=" + beforeId.longValue());
+		get(path, TradeHistory.class, onSuccess, onError);
+	}
+
+	/** The player's own trades over the last {@code days} as CSV text, tax and gross and net profit included. */
+	public void exportTrades(int days, Consumer<String> onSuccess, Consumer<String> onError)
+	{
+		get("/v1/history/export.csv?days=" + Math.max(1, Math.min(3650, days)), String.class, onSuccess, onError);
+	}
+
+	/** Links the game account to the player and returns their plan and announcements. */
 	public void hello(String accountHash, String displayName, String version, Consumer<Me> onSuccess, Consumer<String> onError)
 	{
 		JsonObject body = new JsonObject();
@@ -219,7 +233,17 @@ public class FlipperApiClient
 				onSuccess.accept(null);
 				return;
 			}
+			if (type == String.class)
+			{
+				onSuccess.accept(type.cast(body.string()));
+				return;
+			}
 			onSuccess.accept(gson.fromJson(body.charStream(), type));
+		}
+		catch (java.io.IOException e)
+		{
+			log.debug("Couldn't read the response", e);
+			onError.accept("The download was cut off. Try again.");
 		}
 		catch (RuntimeException e)
 		{
