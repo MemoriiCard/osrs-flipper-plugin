@@ -85,6 +85,42 @@ public class Suggestion
 		public long expectedProfit;
 	}
 
+	/** Plain-language market warnings: the whole market, then the suggested item and the player's own. */
+	@SerializedName("market_notices")
+	public List<MarketNotice> marketNotices;
+
+	public static class MarketNotice
+	{
+		/** Null for a notice about the whole market. */
+		@SerializedName("item_id")
+		public Integer itemId;
+		public String name;
+		public String message;
+	}
+
+	/** Warnings to show under the suggestion, leaving out any the shown reason already says. */
+	public List<String> warnings(String shownReason)
+	{
+		List<String> out = new ArrayList<>();
+		if (marketNotices == null)
+		{
+			return out;
+		}
+		for (MarketNotice n : marketNotices)
+		{
+			if (n == null || n.message == null || n.message.isEmpty() || out.contains(n.message))
+			{
+				continue;
+			}
+			if (shownReason != null && shownReason.contains(n.message))
+			{
+				continue;
+			}
+			out.add(n.message);
+		}
+		return out;
+	}
+
 	public boolean is(String type)
 	{
 		return type.equals(action);
