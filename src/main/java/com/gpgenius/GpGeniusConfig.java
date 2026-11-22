@@ -4,6 +4,8 @@ import com.gpgenius.auth.DataConsent;
 import com.gpgenius.auth.ServerUrl;
 
 import java.awt.event.KeyEvent;
+import java.util.EnumSet;
+import java.util.Set;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
@@ -53,6 +55,58 @@ public interface GpGeniusConfig extends Config
 		}
 	}
 
+	/** Which items to suggest by membership. */
+	enum ItemScope
+	{
+		ANY("Any items"),
+		F2P("Free-to-play only"),
+		MEMBERS("Members only");
+
+		private final String label;
+
+		ItemScope(String label)
+		{
+			this.label = label;
+		}
+
+		@Override
+		public String toString()
+		{
+			return label;
+		}
+	}
+
+	/** Item groups the player can limit suggestions to. Names match the server's categories. */
+	enum Category
+	{
+		RUNES("Runes"),
+		POTIONS("Potions"),
+		FOOD("Food"),
+		AMMO("Ammo"),
+		SKILLING("Skilling supplies"),
+		GEAR("Gear"),
+		OTHER("Everything else");
+
+		private final String label;
+
+		Category(String label)
+		{
+			this.label = label;
+		}
+
+		/** The server's name for the category. */
+		public String key()
+		{
+			return name().toLowerCase(java.util.Locale.ROOT);
+		}
+
+		@Override
+		public String toString()
+		{
+			return label;
+		}
+	}
+
 	/** How often the player comes back to their offers. */
 	enum CheckIn
 	{
@@ -92,28 +146,43 @@ public interface GpGeniusConfig extends Config
 	@ConfigSection(
 		name = "Offer setup",
 		description = "Highlights and hotkeys on the Grand Exchange",
-		position = 1
+		position = 3
 	)
 	String offerSection = "offers";
 
 	@ConfigSection(
 		name = "Tracking",
 		description = "Flip tracking and the side panel",
-		position = 3
+		position = 5
 	)
 	String trackingSection = "tracking";
 
 	@ConfigSection(
 		name = "Dump alerts",
 		description = "Items just sold far below their usual price (premium)",
-		position = 2
+		position = 4
 	)
 	String alertSection = "alerts";
 
 	@ConfigSection(
+		name = "Limits (advanced)",
+		description = "Caps on coins and items. Leave these at 0 or empty for no limit.",
+		position = 1,
+		closedByDefault = true
+	)
+	String limitsSection = "limits";
+
+	@ConfigSection(
+		name = "Check-in reminders",
+		description = "One notification per check-in when your offers need you",
+		position = 2
+	)
+	String reminderSection = "reminders";
+
+	@ConfigSection(
 		name = "Connection",
 		description = "Where the plugin gets suggestions from",
-		position = 4,
+		position = 6,
 		closedByDefault = true
 	)
 	String connectionSection = "connection";
@@ -176,6 +245,18 @@ public interface GpGeniusConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "slotManager",
+		name = "Slot manager",
+		description = "Show a plan for every GE slot: which offers to leave, collect, relist or cut, and what to sell and buy in the free ones. You still do every step yourself.",
+		section = suggestionSection,
+		position = 9
+	)
+	default boolean slotManager()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "checkIn",
 		name = "I check my offers",
 		description = "How often you come back to adjust offers. Often suggests fast flips; rarely suggests patient offers with wider margins and buy limits that last.",
@@ -213,11 +294,23 @@ public interface GpGeniusConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "f2pOnly",
-		name = "Free-to-play items only",
-		description = "Only suggest items free-to-play players can trade, even on members worlds.",
+		keyName = "itemScope",
+		name = "Items to suggest",
+		description = "Any items, free-to-play items only (even on members worlds), or members items only.",
 		section = suggestionSection,
 		position = 5
+	)
+	default ItemScope itemScope()
+	{
+		return ItemScope.ANY;
+	}
+
+	/** Replaced by {@link #itemScope()}; read once on start-up to carry an old setting over. */
+	@ConfigItem(
+		keyName = "f2pOnly",
+		name = "",
+		description = "",
+		hidden = true
 	)
 	default boolean f2pOnly()
 	{
@@ -270,6 +363,187 @@ public interface GpGeniusConfig extends Config
 	default LossHandling lossHandling()
 	{
 		return LossHandling.AUTO;
+	}
+
+	@ConfigItem(
+		keyName = "coinCap",
+		name = "Coins to flip with",
+		description = "The most coins suggestions may use, counting open buy offers. 0 uses all the coins in your inventory.",
+		section = limitsSection,
+		position = 0
+	)
+	default int coinCap()
+	{
+		return 0;
+	}
+
+	@Range(min = 0, max = 100)
+	@ConfigItem(
+		keyName = "maxItemPercent",
+		name = "Max per item (%)",
+		description = "The most of your flipping coins one item may take. 0 means no limit beyond your risk level.",
+		section = limitsSection,
+		position = 1
+	)
+	default int maxItemPercent()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
+		keyName = "minItemPrice",
+		name = "Item price from",
+		description = "Only suggest items that cost at least this much each. 0 means no minimum.",
+		section = limitsSection,
+		position = 2
+	)
+	default int minItemPrice()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
+		keyName = "maxItemPrice",
+		name = "Item price up to",
+		description = "Only suggest items that cost at most this much each. 0 means no maximum.",
+		section = limitsSection,
+		position = 3
+	)
+	default int maxItemPrice()
+	{
+		return 0;
+	}
+
+	@ConfigItem(
+		keyName = "categories",
+		name = "Only these categories",
+		description = "Limit suggestions to these kinds of item. Select none for every item. Categories are worked out from item names, so a few items may land in the wrong one.",
+		section = limitsSection,
+		position = 4
+	)
+	default Set<Category> categories()
+	{
+		return EnumSet.noneOf(Category.class);
+	}
+
+	@ConfigItem(
+		keyName = "favouriteItems",
+		name = "Favourite items",
+		description = "Item IDs to prefer when they're a good flip, separated by commas. The Favourite button on a suggestion adds to this list.",
+		section = limitsSection,
+		position = 5
+	)
+	default String favouriteItems()
+	{
+		return "";
+	}
+
+	@ConfigItem(
+		keyName = "checkInNotification",
+		name = "Check-in reminder",
+		description = "At most one notification per check-in window, summing up what happened: offers done, profit, offers to reprice and whether a next step is ready.",
+		section = reminderSection,
+		position = 0
+	)
+	default Notification checkInNotification()
+	{
+		return Notification.ON;
+	}
+
+	@ConfigItem(
+		keyName = "remindCompleted",
+		name = "Completed offers",
+		description = "Include buys and sells that finished.",
+		section = reminderSection,
+		position = 1
+	)
+	default boolean remindCompleted()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "remindReprice",
+		name = "Offers to reprice",
+		description = "Include offers flagged as stale or no longer profitable.",
+		section = reminderSection,
+		position = 2
+	)
+	default boolean remindReprice()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "remindNextStep",
+		name = "Next step ready",
+		description = "Include a new buy or sell suggestion once a slot frees up.",
+		section = reminderSection,
+		position = 3
+	)
+	default boolean remindNextStep()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "quietHours",
+		name = "Quiet hours",
+		description = "No reminders between the hours below (your computer's clock). Anything that happened is sent once they end.",
+		section = reminderSection,
+		position = 4
+	)
+	default boolean quietHours()
+	{
+		return false;
+	}
+
+	@Range(min = 0, max = 23)
+	@ConfigItem(
+		keyName = "quietStart",
+		name = "Quiet from (hour)",
+		description = "Hour of the day quiet hours start, 0 to 23.",
+		section = reminderSection,
+		position = 5
+	)
+	default int quietStart()
+	{
+		return 23;
+	}
+
+	@Range(min = 0, max = 23)
+	@ConfigItem(
+		keyName = "quietEnd",
+		name = "Quiet until (hour)",
+		description = "Hour of the day quiet hours end, 0 to 23.",
+		section = reminderSection,
+		position = 6
+	)
+	default int quietEnd()
+	{
+		return 8;
+	}
+
+	@ConfigItem(
+		keyName = "setupDone",
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default boolean setupDone()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "setupPreset",
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default String setupPreset()
+	{
+		return "";
 	}
 
 	@ConfigItem(

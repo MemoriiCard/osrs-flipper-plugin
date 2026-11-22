@@ -1,7 +1,10 @@
 package com.gpgenius.tracking;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.UUID;
 
@@ -48,6 +51,52 @@ public class AccountTrades
 				t.clientId = UUID.randomUUID().toString();
 			}
 		}
+	}
+
+	/**
+	 * Adds trades from another tracker's history, skipping ones already here (same client ID), then
+	 * re-pairs every buy and sell in time order so imported buys match later sells.
+	 *
+	 * @return how many trades were added
+	 */
+	public int importHistory(List<Transaction> imported)
+	{
+		Set<String> known = new HashSet<>();
+		for (Transaction t : transactions)
+		{
+			known.add(t.clientId);
+		}
+		List<Transaction> merged = new ArrayList<>(transactions);
+		int added = 0;
+		for (Transaction t : imported)
+		{
+			if (t.clientId != null && known.add(t.clientId))
+			{
+				merged.add(t);
+				added++;
+			}
+		}
+		if (added == 0)
+		{
+			return 0;
+		}
+		merged.sort(Comparator.comparingLong(t -> t.timestampMillis));
+		if (merged.size() > MAX_STORED)
+		{
+			merged = new ArrayList<>(merged.subList(merged.size() - MAX_STORED, merged.size()));
+		}
+		transactions = merged;
+		matcher = new FlipMatcher();
+		flips = new ArrayList<>();
+		for (Transaction t : transactions)
+		{
+			Flip flip = matcher.add(t);
+			if (flip != null)
+			{
+				add(flips, flip);
+			}
+		}
+		return added;
 	}
 
 	public List<Flip> getFlips()
