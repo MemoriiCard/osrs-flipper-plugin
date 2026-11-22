@@ -3,7 +3,6 @@ package com.gpgenius.setup;
 import com.gpgenius.GpGeniusConfig;
 import com.gpgenius.api.FlipperApiClient;
 import com.gpgenius.api.Profiles;
-import com.gpgenius.ui.Theme;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -23,9 +22,16 @@ import net.runelite.client.config.ConfigManager;
 public class ProfileController
 {
 	/** Settings a profile carries. Changing one of these saves the active profile. */
-	public static final List<String> PROFILE_KEYS = Collections.unmodifiableList(java.util.Arrays.asList(
-		"riskLevel", "checkIn", "itemScope", "categories", "coinCap", "maxItemPercent",
-		"minItemPrice", "maxItemPrice", "minProfit", "theme", "compactLayout", "sounds"));
+	public static final List<String> PROFILE_KEYS;
+
+	static
+	{
+		List<String> keys = new ArrayList<>(java.util.Arrays.asList(
+			"riskLevel", "checkIn", "itemScope", "categories", "coinCap", "maxItemPercent",
+			"minItemPrice", "maxItemPrice", "minProfit"));
+		keys.addAll(LookSettings.KEYS);
+		PROFILE_KEYS = Collections.unmodifiableList(keys);
+	}
 
 	/** Wait this long after the last edit before saving, so a spinner doesn't send a request per click. */
 	static final long SAVE_DELAY_MILLIS = 3_000;
@@ -309,15 +315,9 @@ public class ProfileController
 			setConfig("minItemPrice", v.minItemPrice);
 			setConfig("maxItemPrice", v.maxItemPrice);
 			setConfig("minProfit", v.minProfit);
-			if (p.look != null)
+			for (java.util.Map.Entry<String, Object> e : LookSettings.toSettings(p.look).entrySet())
 			{
-				setConfig("compactLayout", p.look.compact);
-				setConfig("sounds", p.look.sounds);
-				Theme theme = theme(p.look.theme);
-				if (theme != null)
-				{
-					setConfig("theme", theme);
-				}
+				setConfig(e.getKey(), e.getValue());
 			}
 			setConfig("setupPreset", p.preset == null ? "" : p.preset);
 			setConfig("activeProfileId", p.id);
@@ -364,11 +364,17 @@ public class ProfileController
 
 	private Profiles.Look look()
 	{
-		Profiles.Look look = new Profiles.Look();
-		look.compact = config.compactLayout();
-		look.sounds = config.sounds();
-		look.theme = config.theme() == null ? null : config.theme().name();
-		return look;
+		return LookSettings.from(config);
+	}
+
+	/** Switches to the next saved profile, for the hotkey. */
+	public void switchToNext()
+	{
+		String next = LookSettings.nextProfileId(getProfiles(), activeId());
+		if (next != null)
+		{
+			switchTo(next);
+		}
 	}
 
 	private String presetId()
@@ -403,21 +409,6 @@ public class ProfileController
 			name = base + " " + n;
 		}
 		return name;
-	}
-
-	static Theme theme(String name)
-	{
-		if (name != null)
-		{
-			for (Theme t : Theme.values())
-			{
-				if (t.name().equalsIgnoreCase(name))
-				{
-					return t;
-				}
-			}
-		}
-		return null;
 	}
 
 	private void setConfig(String key, Object value)

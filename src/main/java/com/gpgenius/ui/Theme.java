@@ -26,7 +26,11 @@ public enum Theme
 		0x4BE38A, 0xFF5C6C, 0xFFC857, 0x2EE6F0, 0xFF9F5A),
 	DRAGON("Dragon",
 		0x150B0B, 0x211212, 0x2D1818, 0x452525, 0xF6E4E0, 0xBC968F, 0xFF7A5C, 0x140402,
-		0x6CC24A, 0xFF7088, 0xFFC04D, 0xFF7A5C, 0x5DB5E8);
+		0x6CC24A, 0xFF7088, 0xFFC04D, 0xFF7A5C, 0x5DB5E8),
+	/** Black and white with a yellow accent, for the high-contrast panel mode. */
+	HIGH_CONTRAST("High contrast",
+		0x000000, 0x000000, 0x141414, 0xFFFFFF, 0xFFFFFF, 0xDADADA, 0xFFD60A, 0x000000,
+		0x5CFF7A, 0xFF8080, 0xFFB020, 0xFFD60A, 0x6CCBFF);
 
 	private final String displayName;
 	/** Panel background. */
@@ -83,6 +87,16 @@ public enum Theme
 			return muted;
 		}
 		return accent;
+	}
+
+	/** The theme to draw with: the high-contrast mode wins over the chosen theme. */
+	public static Theme effective(Theme chosen, boolean highContrast)
+	{
+		if (highContrast)
+		{
+			return HIGH_CONTRAST;
+		}
+		return chosen == null ? GRAND_EXCHANGE : chosen;
 	}
 
 	public static Color withAlpha(Color c, int alpha)
