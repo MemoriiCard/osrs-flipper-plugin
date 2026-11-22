@@ -82,10 +82,15 @@ offer, and tracks your profit.
   Good/Bad ratings and every flip's prices. *Compact panel* hides the chart and flip list.
 - **Your alts don't compete.** Your game accounts are steered to different items unless you allow it.
 
-## Free and premium
+## Free, Premium and Pro
 
-Free accounts get suggestions from the 75 most traded free-to-play items worth up to 5M, plus tracking, highlights and hotkeys. Premium unlocks every item and dump alerts; members items are only suggested on members worlds. New logins get a 4-hour premium trial on one game account once a Discord account at least 30 days old is linked on the website.
-Premium unlocks every item and dump alerts. Plans are managed on the website.
+Plans differ in how fresh prices are, how often suggestions refresh and features. No plan is suggested a flip before another.
+
+- **Free**: suggestions from the 75 most traded free-to-play items worth up to 5M, ranked by margin and volume, refreshed every few minutes, plus tracking, highlights and hotkeys.
+- **Premium**: every item on prices about a minute old, spike-proof pricing, slot planning, market warnings, overnight mode and dump alerts. Members items are only suggested on members worlds.
+- **Pro**: everything in Premium on near-real-time prices, faster re-quotes of offers that stopped filling, and a **Why?** button with a short explanation from the AI market analyst.
+
+The side panel shows your plan and how often it refreshes; the plugin follows the refresh time the server sends. New logins get a 4-hour premium trial on one game account once a Discord account at least 30 days old is linked on the website. Plans are managed on the website.
 
 ## Privacy
 

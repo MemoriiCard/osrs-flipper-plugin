@@ -1305,6 +1305,23 @@ public class GpGeniusPlugin extends Plugin
 		}
 
 		@Override
+		public void explain()
+		{
+			usage.add("panel.explain");
+			clientThread.invokeLater(() ->
+			{
+				Integer itemId = suggestions.currentItemId();
+				if (itemId == null)
+				{
+					return;
+				}
+				api.explain(itemId,
+					answer -> SwingUtilities.invokeLater(() -> panel.showExplanation(answer)),
+					message -> SwingUtilities.invokeLater(() -> panel.showExplanation(message)));
+			});
+		}
+
+		@Override
 		public void block()
 		{
 			usage.add("panel.block");

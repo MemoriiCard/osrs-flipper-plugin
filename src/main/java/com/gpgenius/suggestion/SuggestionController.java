@@ -5,6 +5,7 @@ import com.gpgenius.api.FlipperApiClient;
 import com.gpgenius.api.SlotPlan;
 import com.gpgenius.api.Suggestion;
 import com.gpgenius.api.SuggestionRequest;
+import com.gpgenius.api.Tier;
 import com.gpgenius.auth.AuthSession;
 import com.gpgenius.auth.AuthState;
 import com.gpgenius.auth.DataConsent;
@@ -40,7 +41,6 @@ import net.runelite.client.game.ItemManager;
 public class SuggestionController
 {
 	static final long REFRESH_MILLIS = 60_000;
-	static final long MIN_GAP_MILLIS = 2_000;
 	/** How long a dump alert the player chose stays as the suggestion before normal ones resume. */
 	static final long ALERT_PIN_MILLIS = 3 * 60_000;
 
@@ -235,7 +235,10 @@ public class SuggestionController
 			return;
 		}
 		pinnedUntil = 0;
-		boolean due = dirty ? now - lastRequestMillis >= MIN_GAP_MILLIS : now - lastRequestMillis >= REFRESH_MILLIS;
+		// The plan sets the pace: how often to ask while nothing changed, and how soon after a change.
+		String tier = current == null ? null : current.tier;
+		long refresh = current == null ? REFRESH_MILLIS : Tier.refreshMillis(current.refreshSeconds);
+		boolean due = dirty ? now - lastRequestMillis >= Tier.minGapMillis(tier) : now - lastRequestMillis >= refresh;
 		if (!due)
 		{
 			return;
@@ -348,6 +351,12 @@ public class SuggestionController
 	}
 
 	/** The item the Block button would block: the current buy suggestion's, or null. */
+	/** The item on show, for "Why?" (Pro). Null when there is none. */
+	public Integer currentItemId()
+	{
+		return current != null ? current.itemId : null;
+	}
+
 	public Integer blockableItemId()
 	{
 		return current != null && current.itemId != null && current.is(Suggestion.BUY) ? current.itemId : null;

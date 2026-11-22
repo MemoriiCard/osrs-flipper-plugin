@@ -19,6 +19,11 @@ public interface PanelActions
 
 	void skip();
 
+	/** Pro: ask why the item on show was suggested; the answer goes to FlipperPanel.showExplanation. */
+	default void explain()
+	{
+	}
+
 	/** Never suggest the current item again. */
 	void block();
 
