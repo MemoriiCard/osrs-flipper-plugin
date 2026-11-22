@@ -28,8 +28,33 @@ public class Me
 
 	public static class Announcement
 	{
+		public String id;
 		public String message;
+		/** info, warning or critical. */
 		public String level;
+		public String title;
+		/** An absolute link to more detail (the status page, a release note), or null. */
+		@SerializedName("link_url")
+		public String linkUrl;
+		/** Older servers don't send it; their announcements could always be closed locally. */
+		public Boolean dismissible;
+		@SerializedName("ends_at")
+		public String endsAt;
+
+		public boolean canDismiss()
+		{
+			return id != null && !Boolean.FALSE.equals(dismissible);
+		}
+
+		public boolean isCritical()
+		{
+			return "critical".equals(level);
+		}
+
+		public boolean isWarning()
+		{
+			return "warning".equals(level);
+		}
 	}
 
 	public boolean hasFeature(String key)

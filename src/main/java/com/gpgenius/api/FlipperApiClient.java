@@ -62,6 +62,16 @@ public class FlipperApiClient
 		post("/v1/plugin/hello", body, Me.class, onSuccess, onError);
 	}
 
+	/** Closes an announcement for this player on the website and in every plugin they use. */
+	public void dismissAnnouncement(String announcementId)
+	{
+		if (announcementId == null || !announcementId.matches("[0-9a-fA-F-]{36}"))
+		{
+			return;
+		}
+		post("/v1/announcements/" + announcementId + "/dismiss", new JsonObject(), null, ignored -> { }, this::logOnly);
+	}
+
 	public void uploadTrades(TradeUpload body, Consumer<Integer> onSuccess, Consumer<String> onError)
 	{
 		post("/v1/trades", body, JsonObject.class, json -> onSuccess.accept(
