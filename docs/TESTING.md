@@ -21,7 +21,7 @@ Run the workflow again whenever a new version is merged.
 ## For testers: one-time setup (about 10 minutes)
 
 ### 1. Install Java 11 or newer
-Download **Temurin 17** from [adoptium.net](https://adoptium.net) and install it with the default
+Download **Temurin 21 (LTS)** from [adoptium.net](https://adoptium.net) and install it with the default
 options.
 
 ### 2. Let the test client use your Jagex account

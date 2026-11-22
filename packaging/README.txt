@@ -1,7 +1,7 @@
 GP Genius beta
 =================
 
-1. Install Java 11 or newer: Temurin 17 from https://adoptium.net (default options).
+1. Install Java: Temurin 21 (LTS) from https://adoptium.net, default options. Any Java 11 or newer works.
 2. Jagex Account? Once: open "RuneLite (configure)", add --insecure-write-credentials to
    Client arguments, Save, then start RuneLite from the Jagex Launcher once and close it.
 3. Double-click "Start GP Genius Beta".
