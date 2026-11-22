@@ -9,11 +9,15 @@ import java.util.Set;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
+import com.gpgenius.notify.SoundCue;
+import com.gpgenius.ui.HighlightPalette;
+import com.gpgenius.ui.TextScale;
 import com.gpgenius.ui.Theme;
 import net.runelite.client.config.ConfigSection;
 import net.runelite.client.config.Keybind;
 import net.runelite.client.config.Notification;
 import net.runelite.client.config.Range;
+import net.runelite.client.config.Units;
 
 @ConfigGroup(GpGeniusConfig.GROUP)
 public interface GpGeniusConfig extends Config
@@ -153,14 +157,36 @@ public interface GpGeniusConfig extends Config
 	@ConfigSection(
 		name = "Tracking",
 		description = "Flip tracking and the side panel",
-		position = 5
+		position = 7
 	)
 	String trackingSection = "tracking";
 
 	@ConfigSection(
+		name = "Highlight look",
+		description = "Colour, size and strength of the next-step highlight. Saved with your profile.",
+		position = 4
+	)
+	String highlightSection = "highlightLook";
+
+	@ConfigSection(
+		name = "Accessibility",
+		description = "Bigger text, high contrast and sound cues. Saved with your profile.",
+		position = 5
+	)
+	String accessibilitySection = "accessibility";
+
+	@ConfigSection(
+		name = "Hotkeys",
+		description = "Optional keys for panel actions. All are off until you set them. Kept on this computer only.",
+		position = 8,
+		closedByDefault = true
+	)
+	String hotkeySection = "hotkeys";
+
+	@ConfigSection(
 		name = "Dump alerts",
 		description = "Items just sold far below their usual price (premium)",
-		position = 4
+		position = 6
 	)
 	String alertSection = "alerts";
 
@@ -182,7 +208,7 @@ public interface GpGeniusConfig extends Config
 	@ConfigSection(
 		name = "Connection",
 		description = "Where the plugin gets suggestions from",
-		position = 6,
+		position = 9,
 		closedByDefault = true
 	)
 	String connectionSection = "connection";
@@ -735,5 +761,229 @@ public interface GpGeniusConfig extends Config
 	default boolean priceChart()
 	{
 		return true;
+	}
+
+	@ConfigItem(
+		keyName = "highlightPalette",
+		name = "Highlight colours",
+		description = "Match theme, or a palette that stays clear with red-green or blue-yellow colour blindness. Outbid slots are also dashed and aborts get a cross, so colour is never the only signal.",
+		section = highlightSection,
+		position = 0
+	)
+	default HighlightPalette highlightPalette()
+	{
+		return HighlightPalette.THEME;
+	}
+
+	@Range(min = 1, max = 8)
+	@ConfigItem(
+		keyName = "highlightThickness",
+		name = "Outline thickness",
+		description = "Width of the highlight outline in pixels.",
+		section = highlightSection,
+		position = 1
+	)
+	default int highlightThickness()
+	{
+		return 3;
+	}
+
+	@Range(min = 0, max = 12)
+	@ConfigItem(
+		keyName = "highlightPadding",
+		name = "Highlight size",
+		description = "Pixels the highlight reaches past the thing to click, on every side. Bigger is easier to spot.",
+		section = highlightSection,
+		position = 2
+	)
+	default int highlightPadding()
+	{
+		return 2;
+	}
+
+	@Range(min = 10, max = 100)
+	@Units(Units.PERCENT)
+	@ConfigItem(
+		keyName = "highlightOpacity",
+		name = "Outline opacity",
+		description = "How solid the outline is.",
+		section = highlightSection,
+		position = 3
+	)
+	default int highlightOpacity()
+	{
+		return 85;
+	}
+
+	@Range(min = 0, max = 100)
+	@Units(Units.PERCENT)
+	@ConfigItem(
+		keyName = "highlightFill",
+		name = "Fill opacity",
+		description = "How strongly the inside is tinted. 0 draws the outline only.",
+		section = highlightSection,
+		position = 4
+	)
+	default int highlightFill()
+	{
+		return 20;
+	}
+
+	@ConfigItem(
+		keyName = "highlightPulse",
+		name = "Gentle pulse",
+		description = "Slowly pulse the highlight so it catches the eye. Turn off if motion bothers you.",
+		section = highlightSection,
+		position = 5
+	)
+	default boolean highlightPulse()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "highlightLabel",
+		name = "Say what to click",
+		description = "Show a short label by the highlight, like \"Set price to 1,250\" or \"Click Confirm\".",
+		section = highlightSection,
+		position = 6
+	)
+	default boolean highlightLabel()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "highlightPrompt",
+		name = "Highlight the typing box",
+		description = "When the GE asks for a price or quantity, outline the box and show the number to type.",
+		section = highlightSection,
+		position = 7
+	)
+	default boolean highlightPrompt()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "highlightSpotlight",
+		name = "Spotlight",
+		description = "Dim the rest of the game screen while a next step is highlighted, so it can't be missed.",
+		section = highlightSection,
+		position = 8
+	)
+	default boolean highlightSpotlight()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "textSize",
+		name = "Panel text size",
+		description = "Bigger text in the side panel.",
+		section = accessibilitySection,
+		position = 0
+	)
+	default TextScale.Size textSize()
+	{
+		return TextScale.Size.NORMAL;
+	}
+
+	@ConfigItem(
+		keyName = "highContrast",
+		name = "High contrast",
+		description = "Black and white panel with a yellow accent, in place of the theme. Highlights use it too when set to Match theme.",
+		section = accessibilitySection,
+		position = 1
+	)
+	default boolean highContrast()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "soundCues",
+		name = "Sound cues",
+		description = "Short game sounds when a new next step is ready, an offer finishes, or an offer gets outbid. None are on by default. Notification sounds must be on.",
+		section = accessibilitySection,
+		position = 2
+	)
+	default Set<SoundCue> soundCues()
+	{
+		return EnumSet.noneOf(SoundCue.class);
+	}
+
+	@Range(min = 1, max = 100)
+	@Units(Units.PERCENT)
+	@ConfigItem(
+		keyName = "soundCueVolume",
+		name = "Sound cue volume",
+		description = "How loud the sound cues are.",
+		section = accessibilitySection,
+		position = 3
+	)
+	default int soundCueVolume()
+	{
+		return 60;
+	}
+
+	@ConfigItem(
+		keyName = "toggleHighlightKeybind",
+		name = "Highlights on/off",
+		description = "Turn the next-step highlight on or off. Use a key with Ctrl, Alt or Shift so chat typing can't trigger it.",
+		section = hotkeySection,
+		position = 0
+	)
+	default Keybind toggleHighlightKeybind()
+	{
+		return Keybind.NOT_SET;
+	}
+
+	@ConfigItem(
+		keyName = "refreshKeybind",
+		name = "Refresh suggestion",
+		description = "Ask for a fresh suggestion now.",
+		section = hotkeySection,
+		position = 1
+	)
+	default Keybind refreshKeybind()
+	{
+		return Keybind.NOT_SET;
+	}
+
+	@ConfigItem(
+		keyName = "nextProfileKeybind",
+		name = "Next profile",
+		description = "Switch to your next saved profile.",
+		section = hotkeySection,
+		position = 2
+	)
+	default Keybind nextProfileKeybind()
+	{
+		return Keybind.NOT_SET;
+	}
+
+	@ConfigItem(
+		keyName = "toggleViewKeybind",
+		name = "Simple/advanced view",
+		description = "Switch the panel between simple and advanced view.",
+		section = hotkeySection,
+		position = 3
+	)
+	default Keybind toggleViewKeybind()
+	{
+		return Keybind.NOT_SET;
+	}
+
+	@ConfigItem(
+		keyName = "toggleCompactKeybind",
+		name = "Compact panel on/off",
+		description = "Turn the compact panel on or off.",
+		section = hotkeySection,
+		position = 4
+	)
+	default Keybind toggleCompactKeybind()
+	{
+		return Keybind.NOT_SET;
 	}
 }

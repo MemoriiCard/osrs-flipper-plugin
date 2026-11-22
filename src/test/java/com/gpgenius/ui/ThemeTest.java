@@ -1,5 +1,6 @@
 package com.gpgenius.ui;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import java.awt.Color;
 import org.junit.Test;
@@ -34,5 +35,15 @@ public class ThemeTest
 			}
 			assertTrue(t + " on accent", Theme.contrast(t.onAccent, t.accent) >= 7);
 		}
+	}
+
+	@Test
+	public void highContrastWinsOverTheChosenTheme()
+	{
+		assertEquals(Theme.HIGH_CONTRAST, Theme.effective(Theme.MATRIX, true));
+		assertEquals(Theme.MATRIX, Theme.effective(Theme.MATRIX, false));
+		assertEquals(Theme.GRAND_EXCHANGE, Theme.effective(null, false));
+		// Strongest text contrast of any theme.
+		assertTrue(Theme.contrast(Theme.HIGH_CONTRAST.text, Theme.HIGH_CONTRAST.background) >= 20);
 	}
 }

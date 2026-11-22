@@ -15,7 +15,7 @@ offer, and tracks your profit.
 - **One-click start.** Pick Active, AFK, Overnight, Low budget or High volume and the first suggestion
   arrives within seconds. Start again any time from the Presets button at the top of the panel.
 - **Saved profiles.** Each preset you pick is saved as a profile on your account, with its own risk,
-  check-in time, coin cap, per-item cap, filters, theme, compact layout and sound choice. Switch, add,
+  check-in time, coin cap, per-item cap, filters, theme, compact layout, sound choice, highlight look and accessibility modes (not hotkeys). Switch, add,
   rename or delete profiles from the bar at the top of the panel; edits to those settings save to the
   active profile. Profiles follow you to any computer you sign in on.
 - **Your limits.** Under *Limits (advanced)*: coins to flip with (the rest of your stack is never
@@ -38,9 +38,20 @@ offer, and tracks your profit.
   has left gets flagged, with the price to rebuy or relist at.
 - **Themes.** Grand Exchange, RuneLite, Matrix, Amethyst, Neon Cyan and Dragon. Every theme is dark
   and contrast-checked, and the in-game highlight follows the theme.
+- **Highlights you can't miss.** Under *Highlight look*: red-green safe, blue-yellow safe, high
+  visibility or white-only colours; outline thickness, size and opacity; fill strength; a gentle pulse
+  (off for motion sensitivity); a label that says exactly what to click or type ("Set price to
+  1,250"); an outline on the price or quantity box while it's open; and an optional spotlight that
+  dims everything else. Outbid slots are also dashed with a "!" and aborts get a cross, so colour is
+  never the only signal.
+- **Accessibility.** Larger panel text (Large or Largest), a black-and-white high-contrast mode, and
+  optional sound cues for a new next step, a finished offer or an outbid offer. Cues are off by
+  default and rate limited.
+- **Optional hotkeys.** Highlights on/off, refresh suggestion, next profile, simple/advanced view and
+  compact panel. All unset by default and kept per computer.
 - **Price chart.** Day, week and month charts of the item you're setting up or the suggested item.
-- **Offer slot colours.** Active offers are outlined green while their price still fills and red once
-  the market has moved past it.
+- **Offer slot colours.** Active offers are outlined green while their price still fills and red,
+  dashed and marked "!" once the market has moved past it (colours follow *Highlight colours*).
 - **Market warnings.** When an item's prices are unstable, or a game update or event is due, the
   server pauses or lowers suggestions for it and the card shows a short warning, in simple and
   advanced mode.

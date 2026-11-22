@@ -13,7 +13,9 @@ import net.runelite.client.input.KeyListener;
 
 /**
  * The quick-set key types the suggested price or quantity into the open GE prompt; the player still
- * presses Enter. The skip key asks for a different suggestion. One key press does at most one thing.
+ * presses Enter. The skip key asks for a different suggestion. The optional panel keys only change
+ * plugin settings or ask the server again; none of them touch the game. One key press does at most
+ * one thing.
  */
 @Singleton
 public class OfferHotkeys implements KeyListener
@@ -23,6 +25,21 @@ public class OfferHotkeys implements KeyListener
 	private final GrandExchangeWidgets ge;
 	private final SuggestionController suggestions;
 	private final UsageCounter usage;
+	private volatile Shortcuts shortcuts;
+
+	/** Panel actions behind the optional hotkeys. Called on the client thread. */
+	public interface Shortcuts
+	{
+		void toggleHighlights();
+
+		void refresh();
+
+		void nextProfile();
+
+		void toggleView();
+
+		void toggleCompact();
+	}
 
 	@Inject
 	public OfferHotkeys(GpGeniusConfig config, ClientThread clientThread, GrandExchangeWidgets ge,
@@ -33,6 +50,11 @@ public class OfferHotkeys implements KeyListener
 		this.clientThread = clientThread;
 		this.ge = ge;
 		this.suggestions = suggestions;
+	}
+
+	public void setShortcuts(Shortcuts shortcuts)
+	{
+		this.shortcuts = shortcuts;
 	}
 
 	@Override
@@ -53,7 +75,51 @@ public class OfferHotkeys implements KeyListener
 		if (quickSet || skip)
 		{
 			clientThread.invokeLater(() -> handle(quickSet, skip));
+			return;
 		}
+		Runnable shortcut = shortcut(e);
+		if (shortcut != null)
+		{
+			// Keep the key out of the chatbox.
+			e.consume();
+			clientThread.invokeLater(shortcut);
+		}
+	}
+
+	private Runnable shortcut(KeyEvent e)
+	{
+		Shortcuts s = shortcuts;
+		if (s == null)
+		{
+			return null;
+		}
+		if (matches(config.toggleHighlightKeybind(), e))
+		{
+			return () -> track("hotkey.toggle_highlight", s::toggleHighlights);
+		}
+		if (matches(config.refreshKeybind(), e))
+		{
+			return () -> track("hotkey.refresh", s::refresh);
+		}
+		if (matches(config.nextProfileKeybind(), e))
+		{
+			return () -> track("hotkey.next_profile", s::nextProfile);
+		}
+		if (matches(config.toggleViewKeybind(), e))
+		{
+			return () -> track("hotkey.toggle_view", s::toggleView);
+		}
+		if (matches(config.toggleCompactKeybind(), e))
+		{
+			return () -> track("hotkey.toggle_compact", s::toggleCompact);
+		}
+		return null;
+	}
+
+	private void track(String name, Runnable action)
+	{
+		usage.add(name);
+		action.run();
 	}
 
 	@Override
