@@ -3,7 +3,7 @@ rem Starts RuneLite with the GP Genius beta plugin built in. Needs Java 11 or ne
 cd /d "%~dp0"
 where java >nul 2>nul
 if errorlevel 1 (
-  echo Java isn't installed. Install Temurin 17 from https://adoptium.net, then double-click this file again.
+  echo Java isn't installed. Install Temurin 21 (LTS) from https://adoptium.net, restart your PC, then double-click this file again.
   pause
   exit /b 1
 )

@@ -68,6 +68,13 @@ offer, and tracks your profit.
 - **Suggested minimum cash stack.** A round figure such as 200M: the smallest stack we suggest
   flipping with to hold on to the gains you've reached. It's worked out on the server and only appears
   once your stack is known.
+- **Logging off? Overnight mode.** Pick how many hours you'll be away and *Plan overnight*: the
+  suggestion and the GE slot plan switch to slower, safer offers for every free slot, sized for the time
+  you're gone. You set up each offer yourself before logging off. It turns itself off 90 minutes after
+  you come back.
+- **Trade dashboard and CSV export.** A pop-out window with your totals, six charts and a sortable table
+  of every trade, and *Export CSV* (open and close time, prices, tax, gross and net profit) to a file
+  you choose. Only your own trades are shown.
 - **Profit tracking.** Every GE fill is recorded, buys and sells are paired oldest first, and profit is
   worked out after GE tax. Session and all-time profit and recent flips show in the side panel; full
   history, charts and CSV export are on the website.
