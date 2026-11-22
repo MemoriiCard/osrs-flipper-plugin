@@ -47,13 +47,47 @@ public final class Profiles
 		public boolean active;
 	}
 
-	/** How the panel looks for this profile. */
+	/**
+	 * How the panel and highlights look for this profile. The highlight and accessibility fields are
+	 * null when a profile was saved before they existed (or by an older server); null leaves the
+	 * player's current setting alone.
+	 */
 	public static class Look
 	{
 		public boolean compact;
 		/** A Theme name; unknown names keep the current theme. */
 		public String theme;
 		public boolean sounds = true;
+
+		/** A HighlightPalette name. */
+		@SerializedName("highlight_palette")
+		public String highlightPalette;
+		@SerializedName("highlight_thickness")
+		public Integer highlightThickness;
+		@SerializedName("highlight_padding")
+		public Integer highlightPadding;
+		@SerializedName("highlight_opacity")
+		public Integer highlightOpacity;
+		@SerializedName("highlight_fill")
+		public Integer highlightFill;
+		@SerializedName("highlight_pulse")
+		public Boolean highlightPulse;
+		@SerializedName("highlight_label")
+		public Boolean highlightLabel;
+		@SerializedName("highlight_prompt")
+		public Boolean highlightPrompt;
+		@SerializedName("highlight_spotlight")
+		public Boolean highlightSpotlight;
+		/** A TextScale.Size name. */
+		@SerializedName("text_size")
+		public String textSize;
+		@SerializedName("high_contrast")
+		public Boolean highContrast;
+		/** SoundCue names. */
+		@SerializedName("sound_cues")
+		public List<String> soundCues;
+		@SerializedName("sound_cue_volume")
+		public Integer soundCueVolume;
 	}
 
 	/** POST /v1/profiles */

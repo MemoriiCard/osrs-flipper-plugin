@@ -157,6 +157,8 @@ public class FlipperPanel extends PluginPanel
 	private boolean loggedIn;
 	private List<Flip> flips = Collections.emptyList();
 	private List<DumpAlert> alerts = Collections.emptyList();
+	/** Large-text mode; follows rows added later too. */
+	private final TextScale textScale = new TextScale();
 
 	public FlipperPanel(PanelActions actions)
 	{
@@ -206,6 +208,15 @@ public class FlipperPanel extends PluginPanel
 		showSlots(null);
 		showImportMessage(null);
 		setTheme(theme);
+		textScale.install(this);
+	}
+
+	/** Panel text size, 1 for normal. Safe to call at any time on the Swing thread. */
+	public void setTextScale(float scale)
+	{
+		textScale.setScale(this, scale);
+		revalidate();
+		repaint();
 	}
 
 	/** Re-colours everything. Safe to call at any time on the Swing thread. */
