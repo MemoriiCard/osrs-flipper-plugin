@@ -21,6 +21,8 @@ public class Transaction
 	public String clientId;
 	/** Whether the server has acknowledged this trade. */
 	public boolean uploaded;
+	/** Copied from another tracker's history rather than seen by this plugin. */
+	public boolean imported;
 
 	public Transaction()
 	{

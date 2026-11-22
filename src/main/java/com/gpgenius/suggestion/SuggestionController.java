@@ -2,6 +2,7 @@ package com.gpgenius.suggestion;
 
 import com.gpgenius.GpGeniusConfig;
 import com.gpgenius.api.FlipperApiClient;
+import com.gpgenius.api.SlotPlan;
 import com.gpgenius.api.Suggestion;
 import com.gpgenius.api.SuggestionRequest;
 import com.gpgenius.auth.AuthSession;
@@ -50,6 +51,8 @@ public class SuggestionController
 	private final FlipperApiClient api;
 	private final AuthSession auth;
 	private final SkipList skips = new SkipList();
+	private final PlanState plan = new PlanState();
+	private final SlotPlanState slotPlan = new SlotPlanState();
 
 	@Getter
 	private Suggestion current;
@@ -92,6 +95,42 @@ public class SuggestionController
 		inFlight = false;
 		dirty = true;
 		skips.clear();
+		plan.reset();
+		slotPlan.reset();
+		onChange.run();
+	}
+
+	/** The player just logged in: ask for a plan covering every free slot. */
+	public void startPlan()
+	{
+		plan.start();
+		dirty = true;
+	}
+
+	/** Call every tick. Coming back to the GE after a check-in window away starts a plan. */
+	public void noteGe(boolean open, long nowMillis)
+	{
+		if (plan.atGe(open, nowMillis, config.checkIn().minutes * 60_000L))
+		{
+			dirty = true;
+		}
+	}
+
+	/** The plan to show in the panel, or null. */
+	public Suggestion.Plan getPlan()
+	{
+		return plan.getPlan();
+	}
+
+	/** The plan for every GE slot, or null before the first one arrives. */
+	public SlotPlan getSlotPlan()
+	{
+		return slotPlan.getPlan();
+	}
+
+	public void dismissPlan()
+	{
+		plan.dismiss();
 		onChange.run();
 	}
 
@@ -158,6 +197,8 @@ public class SuggestionController
 		Player player = client.getLocalPlayer();
 		request.displayName = player == null || player.getName() == null ? "" : player.getName();
 		request.profile.allowSharedItems = config.allowSharedItems();
+		request.plan = plan.wanted();
+		request.plannedItemIds = plan.plannedItemIds();
 		dirty = false;
 		inFlight = true;
 		lastRequestMillis = now;
@@ -165,6 +206,28 @@ public class SuggestionController
 		api.suggest(request,
 			suggestion -> clientThread.invokeLater(() -> finish(requestGeneration, suggestion, null)),
 			message -> clientThread.invokeLater(() -> finish(requestGeneration, null, message)));
+		if (config.slotManager() && slotPlan.due(now))
+		{
+			slotPlan.sent(now);
+			api.slots(request,
+				result -> clientThread.invokeLater(() -> finishSlots(requestGeneration, result)),
+				message -> clientThread.invokeLater(() -> finishSlots(requestGeneration, null)));
+		}
+	}
+
+	private void finishSlots(int requestGeneration, SlotPlan result)
+	{
+		if (requestGeneration != generation)
+		{
+			return;
+		}
+		if (result == null)
+		{
+			slotPlan.failed();
+			return;
+		}
+		slotPlan.received(result);
+		onChange.run();
 	}
 
 	private void finish(int requestGeneration, Suggestion suggestion, String message)
@@ -178,6 +241,7 @@ public class SuggestionController
 		{
 			current = suggestion;
 			error = null;
+			plan.onResult(suggestion.plan);
 		}
 		else
 		{
@@ -244,11 +308,30 @@ public class SuggestionController
 		RequestBuilder.Settings s = new RequestBuilder.Settings();
 		s.risk = config.riskLevel().name().toLowerCase(Locale.ROOT);
 		s.timeframeMinutes = config.checkIn().minutes;
-		s.f2pOnly = config.f2pOnly();
+		s.f2pOnly = config.itemScope() == GpGeniusConfig.ItemScope.F2P;
+		s.membersOnly = config.itemScope() == GpGeniusConfig.ItemScope.MEMBERS;
+		s.coinCap = config.coinCap();
+		s.maxItemPercent = config.maxItemPercent();
+		s.minItemPrice = config.minItemPrice();
+		s.maxItemPrice = config.maxItemPrice();
+		s.favouriteItems = config.favouriteItems();
+		if (config.categories() != null)
+		{
+			for (GpGeniusConfig.Category category : config.categories())
+			{
+				s.categories.add(category.key());
+			}
+		}
 		s.blockedItems = config.blockedItems();
 		s.minProfit = config.minProfit();
 		s.reservedSlots = config.reservedSlots();
 		s.sellOnly = config.sellOnly();
+		s.lossHandling = config.lossHandling().name().toLowerCase(Locale.ROOT);
+		// Only ids the server knows, so a stale or hand-edited value can't fail the request.
+		String profileId = config.activeProfileId();
+		s.profileId = profileId == null || profileId.trim().isEmpty() ? null : profileId.trim();
+		s.preset = com.gpgenius.setup.Preset.byId(com.gpgenius.setup.Preset.BUILT_IN, config.setupPreset()) == null
+			? null : config.setupPreset();
 		return s;
 	}
 

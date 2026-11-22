@@ -13,6 +13,8 @@ public final class TradeSync
 {
 	/** The server accepts at most this many trades per request. */
 	public static final int BATCH = 500;
+	/** The server refuses trades older than this (mid-2017), so one bad imported date can't block a batch. */
+	static final long OLDEST_MILLIS = 1_500_000_000_000L;
 
 	private TradeSync()
 	{
@@ -27,7 +29,8 @@ public final class TradeSync
 			{
 				break;
 			}
-			if (!t.uploaded && t.clientId != null && t.quantity > 0 && t.totalCoins >= 0)
+			if (!t.uploaded && t.clientId != null && t.quantity > 0 && t.totalCoins >= 0
+				&& t.timestampMillis >= OLDEST_MILLIS)
 			{
 				out.add(t);
 			}
@@ -49,6 +52,7 @@ public final class TradeSync
 			trade.quantity = t.quantity;
 			trade.total = t.totalCoins;
 			trade.timestampMs = t.timestampMillis;
+			trade.imported = t.imported;
 			upload.trades.add(trade);
 		}
 		return upload;

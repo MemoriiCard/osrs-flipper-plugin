@@ -38,7 +38,19 @@ public final class RequestBuilder
 		profile.timeframeMinutes = settings.timeframeMinutes;
 		profile.f2pOnly = settings.f2pOnly;
 		profile.blockedItemIds = parseItemIds(settings.blockedItems);
-		profile.minProfitPerFlip = Math.max(0, settings.minProfit);
+		boolean fromPreset = settings.preset != null || settings.profileId != null;
+		request.preset = settings.preset;
+		request.profileId = settings.profileId;
+		// With a preset, "no minimum" means "the preset's minimum", so leave it out.
+		profile.minProfitPerFlip = settings.minProfit > 0 || !fromPreset ? (long) Math.max(0, settings.minProfit) : null;
+		profile.lossHandling = settings.lossHandling;
+		profile.membersOnly = settings.membersOnly && !settings.f2pOnly;
+		profile.coinCap = settings.coinCap > 0 ? (long) settings.coinCap : null;
+		profile.maxItemPercent = settings.maxItemPercent > 0 ? Math.min(100, settings.maxItemPercent) : null;
+		profile.minItemPrice = settings.minItemPrice > 0 ? (long) settings.minItemPrice : null;
+		profile.maxItemPrice = settings.maxItemPrice > 0 ? (long) settings.maxItemPrice : null;
+		profile.favouriteItemIds = parseItemIds(settings.favouriteItems);
+		profile.categories = new ArrayList<>(settings.categories);
 
 		SuggestionRequest.Account account = request.account;
 		account.coins = inventory.getOrDefault(Inventory.COINS, 0L);
@@ -70,8 +82,7 @@ public final class RequestBuilder
 		return held;
 	}
 
-	/** Parses "4151, 11802,abc" into [4151, 11802], ignoring anything that isn't an item ID. */
-	/** The blocked-items setting with one more item ID on the end. */
+	/** An item-ID list setting (blocked or favourite items) with one more item ID on the end. */
 	public static String withItemId(String text, int itemId)
 	{
 		List<Integer> ids = parseItemIds(text);
@@ -87,7 +98,8 @@ public final class RequestBuilder
 		return out.toString();
 	}
 
-	static List<Integer> parseItemIds(String text)
+	/** Parses "4151, 11802,abc" into [4151, 11802], ignoring anything that isn't an item ID. */
+	public static List<Integer> parseItemIds(String text)
 	{
 		List<Integer> ids = new ArrayList<>();
 		if (text == null)
@@ -126,6 +138,19 @@ public final class RequestBuilder
 		public int minProfit;
 		public int reservedSlots;
 		public boolean sellOnly;
+		public String lossHandling = "auto";
+		public boolean membersOnly;
+		/** 0 means no cap, here and for the prices below. */
+		public int coinCap;
+		public int maxItemPercent;
+		public int minItemPrice;
+		public int maxItemPrice;
+		public String favouriteItems = "";
+		/** Server category names, such as "runes". Empty means every category. */
+		public List<String> categories = new ArrayList<>();
+		/** The fast-start preset or saved profile in use; null for neither. */
+		public String preset;
+		public String profileId;
 	}
 
 	/** Item IDs used when reading the inventory. */

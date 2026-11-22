@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.inject.Provides;
 import com.gpgenius.api.FlipperApiClient;
 import com.gpgenius.api.Me;
+import com.gpgenius.api.SlotPlan;
 import com.gpgenius.api.Suggestion;
 import com.gpgenius.auth.AuthSession;
 import com.gpgenius.auth.AuthState;
@@ -16,6 +17,11 @@ import com.gpgenius.market.GuardState;
 import com.gpgenius.market.ChartController;
 import com.gpgenius.market.PriceCache;
 import com.gpgenius.ge.OfferHotkeys;
+import com.gpgenius.history.FlippingUtilitiesImport;
+import com.gpgenius.notify.CheckInDigest;
+import com.gpgenius.notify.SoundCue;
+import com.gpgenius.notify.SoundCues;
+import com.gpgenius.setup.ProfileController;
 import com.gpgenius.suggestion.RequestBuilder;
 import com.gpgenius.suggestion.SuggestionController;
 import com.gpgenius.sync.TradeSync;
@@ -29,9 +35,12 @@ import com.gpgenius.tracking.Transaction;
 import com.gpgenius.ui.FlipperPanel;
 import com.gpgenius.ui.PanelActions;
 import com.gpgenius.ui.HighlightOverlay;
+import com.gpgenius.ui.Theme;
+import com.gpgenius.market.SlotColor;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -48,6 +57,7 @@ import net.runelite.api.GrandExchangeOffer;
 import net.runelite.api.GrandExchangeOfferState;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.Player;
+import net.runelite.api.SoundEffectID;
 import net.runelite.api.WorldType;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
@@ -60,6 +70,9 @@ import net.runelite.client.Notifier;
 import net.runelite.client.RuneLite;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.config.Notification;
+import net.runelite.client.config.NotificationSound;
+import net.runelite.client.config.RuneLiteConfig;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
@@ -150,7 +163,18 @@ public class GpGeniusPlugin extends Plugin
 	@Inject
 	private Notifier notifier;
 
+	@Inject
+	private RuneLiteConfig runeLiteConfig;
+
 	private FlipperPanel panel;
+	/** Fast-start presets and saved profiles. Thread-safe. */
+	private ProfileController profiles;
+	private long lastProfileLoadMillis;
+	/** Client thread only. Groups news about the player's offers into one reminder per check-in. */
+	private final CheckInDigest digest = new CheckInDigest();
+	/** Client thread only. When the optional sound cues play. */
+	private final SoundCues cues = new SoundCues();
+	private boolean importInFlight;
 	private ChartController chart;
 	private NavigationButton navButton;
 	private TradeStore store;
@@ -174,11 +198,16 @@ public class GpGeniusPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
+		migrateSettings();
 		File dir = new File(RuneLite.RUNELITE_DIR, "gp-genius");
 		store = new TradeStore(gson, dir);
 		panel = new FlipperPanel(new Actions());
 		panel.setAdvanced(config.viewMode() == GpGeniusConfig.ViewMode.ADVANCED);
-		panel.setTheme(config.theme());
+		panel.setTheme(effectiveTheme());
+		panel.setTextScale(config.textSize().scale);
+		panel.showSetup(!config.setupDone());
+		panel.setCompact(config.compactLayout());
+		profiles = new ProfileController(config, configManager, api, this::updateProfilePanel);
 		auth.start(new TokenFile(gson, dir), config::apiUrl, () -> clientThread.invokeLater(this::onAuthChanged));
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "nav_icon.png");
 		navButton = NavigationButton.builder()
@@ -194,6 +223,7 @@ public class GpGeniusPlugin extends Plugin
 		chart = new ChartController(api, clientThread::invokeLater);
 		chart.setOnChange(this::updateChartPanel);
 		overlayManager.add(highlightOverlay);
+		hotkeys.setShortcuts(new Shortcuts());
 		keyManager.registerKeyListener(hotkeys);
 
 		clientThread.invokeLater(() ->
@@ -215,6 +245,7 @@ public class GpGeniusPlugin extends Plugin
 		clientToolbar.removeNavigation(navButton);
 		overlayManager.remove(highlightOverlay);
 		keyManager.unregisterKeyListener(hotkeys);
+		hotkeys.setShortcuts(null);
 		suggestions.setOnChange(() -> { });
 		clientThread.invokeLater(suggestions::reset);
 		auth.stop();
@@ -250,6 +281,7 @@ public class GpGeniusPlugin extends Plugin
 				accountHash = -1;
 				me = null;
 				suggestions.reset();
+				cues.reset();
 				alerts.reset();
 				prices.clear();
 				guard.setReason(null);
@@ -271,6 +303,16 @@ public class GpGeniusPlugin extends Plugin
 
 		long now = System.currentTimeMillis();
 		boolean connected = auth.getState() == AuthState.SIGNED_IN && consented();
+		if (connected)
+		{
+			// Retry a failed load once a minute rather than every tick.
+			if (!profiles.isLoaded() && now - lastProfileLoadMillis >= 60_000)
+			{
+				lastProfileLoadMillis = now;
+				profiles.load();
+			}
+			profiles.tick(now);
+		}
 		if (connected && trades != null)
 		{
 			if (!helloInFlight && now - lastHelloMillis >= HELLO_MILLIS)
@@ -285,10 +327,12 @@ public class GpGeniusPlugin extends Plugin
 		if (connected && client.getGameState() == GameState.LOGGED_IN)
 		{
 			prices.want(pricedItems());
+			watchOutbid();
 			chart.tick(config.priceChart() ? chartItem() : null, now);
 			if (config.dumpAlerts() && me != null && me.accountPremium() && accountHash != -1)
 			{
-				alerts.poll(accountHash, coins(), config.minProfit(), config.f2pOnly(),
+				alerts.poll(accountHash, coins(), config.minProfit(),
+					config.itemScope() == GpGeniusConfig.ItemScope.F2P,
 					client.getWorldType().contains(WorldType.MEMBERS), this::onNewAlert, this::updateAlertPanel);
 			}
 		}
@@ -297,6 +341,7 @@ public class GpGeniusPlugin extends Plugin
 			chart.tick(null, now);
 		}
 		updateGuard();
+		checkIn(now);
 		if (now - lastUsageMillis >= USAGE_MILLIS)
 		{
 			lastUsageMillis = now;
@@ -333,6 +378,19 @@ public class GpGeniusPlugin extends Plugin
 	public void onGrandExchangeOfferChanged(GrandExchangeOfferChanged event)
 	{
 		suggestions.invalidate();
+		boolean trusted = client.getGameState() == GameState.LOGGED_IN
+			&& client.getTickCount() - loginTick > LOGIN_BURST_TICKS;
+		digest.offerChanged(event.getSlot(), toStatus(event.getOffer().getState()),
+			trusted && config.remindCompleted(), System.currentTimeMillis());
+		GrandExchangeOfferState offerState = event.getOffer().getState();
+		if (offerState == GrandExchangeOfferState.EMPTY)
+		{
+			cues.clearSlot(event.getSlot());
+		}
+		else if (trusted && (offerState == GrandExchangeOfferState.BOUGHT || offerState == GrandExchangeOfferState.SOLD))
+		{
+			playCue(SoundCue.OFFER_DONE);
+		}
 		if (!config.trackTrades())
 		{
 			return;
@@ -355,9 +413,22 @@ public class GpGeniusPlugin extends Plugin
 			{
 				clientThread.invokeLater(this::updateAccountPanel);
 			}
-			if ("theme".equals(event.getKey()))
+			if ("theme".equals(event.getKey()) || "highContrast".equals(event.getKey()))
 			{
-				SwingUtilities.invokeLater(() -> panel.setTheme(config.theme()));
+				SwingUtilities.invokeLater(() -> panel.setTheme(effectiveTheme()));
+			}
+			if ("textSize".equals(event.getKey()))
+			{
+				SwingUtilities.invokeLater(() -> panel.setTextScale(config.textSize().scale));
+			}
+			if ("compactLayout".equals(event.getKey()))
+			{
+				SwingUtilities.invokeLater(() -> panel.setCompact(config.compactLayout()));
+			}
+			profiles.settingChanged(event.getKey(), System.currentTimeMillis());
+			if ("setupDone".equals(event.getKey()) && !config.setupDone())
+			{
+				SwingUtilities.invokeLater(() -> panel.showSetup(true));
 			}
 			clientThread.invokeLater(() ->
 			{
@@ -397,6 +468,10 @@ public class GpGeniusPlugin extends Plugin
 		if (flip != null)
 		{
 			log.debug("Flip completed: {} x{} profit {}", flip.itemName, flip.quantity, flip.profit);
+			if (config.remindCompleted())
+			{
+				digest.flipProfit(flip.profit, System.currentTimeMillis());
+			}
 		}
 		if (trades.getTransactions().size() != before)
 		{
@@ -414,6 +489,10 @@ public class GpGeniusPlugin extends Plugin
 		accountHash = hash;
 		me = null;
 		lastHelloMillis = 0;
+		// The player is here now; the first reminder comes a check-in window later at the soonest.
+		digest.resetSlots();
+		digest.seen(System.currentTimeMillis());
+		suggestions.startPlan();
 		lastSyncMillis = 0;
 		try
 		{
@@ -486,7 +565,126 @@ public class GpGeniusPlugin extends Plugin
 		final boolean enabled = config.suggestionsEnabled();
 		final Suggestion current = suggestions.getCurrent();
 		final String error = suggestions.getError();
-		SwingUtilities.invokeLater(() -> panel.showSuggestion(enabled, current, error));
+		final Suggestion.Plan plan = enabled ? suggestions.getPlan() : null;
+		final SlotPlan slotPlan = enabled && config.slotManager() ? suggestions.getSlotPlan() : null;
+		if (cues.stepChanged(enabled ? SoundCues.stepKey(current) : null))
+		{
+			playCue(SoundCue.NEXT_STEP);
+		}
+		if (enabled && current != null && current.action != null)
+		{
+			digest.suggestion(current.action, current.name, current.headline(), config.remindReprice(),
+				config.remindNextStep(), System.currentTimeMillis());
+		}
+		SwingUtilities.invokeLater(() ->
+		{
+			panel.showSuggestion(enabled, current, error);
+			panel.showPlan(plan);
+			panel.showSlots(slotPlan);
+		});
+	}
+
+	private Theme effectiveTheme()
+	{
+		return Theme.effective(config.theme(), config.highContrast());
+	}
+
+	/** Client thread. Plays a sound cue if the player turned it on and it hasn't just played. */
+	private void playCue(SoundCue cue)
+	{
+		if (!client.isClientThread())
+		{
+			clientThread.invokeLater(() -> playCue(cue));
+			return;
+		}
+		if (!cues.play(cue, config.sounds(), config.soundCues(), System.currentTimeMillis()))
+		{
+			return;
+		}
+		int id;
+		switch (cue)
+		{
+			case OFFER_DONE:
+				id = SoundEffectID.GE_COIN_TINKLE;
+				break;
+			case OUTBID:
+				id = SoundEffectID.GE_DECREMENT_PLOP;
+				break;
+			case NEXT_STEP:
+			default:
+				id = SoundEffectID.UI_BOOP;
+				break;
+		}
+		// Game sound effects go up to 127.
+		int volume = Math.max(1, Math.min(127, Math.round(config.soundCueVolume() * 127 / 100f)));
+		client.playSoundEffect(id, volume);
+	}
+
+	/** Client thread. Sounds the outbid cue when an offer that would fill has just been passed by the market. */
+	private void watchOutbid()
+	{
+		if (config.soundCues() == null || !config.soundCues().contains(SoundCue.OUTBID))
+		{
+			return;
+		}
+		GrandExchangeOffer[] offers = client.getGrandExchangeOffers();
+		boolean outbid = false;
+		for (int i = 0; i < offers.length; i++)
+		{
+			GrandExchangeOffer offer = offers[i];
+			if (offer == null)
+			{
+				cues.clearSlot(i);
+				continue;
+			}
+			GrandExchangeOfferState state = offer.getState();
+			boolean buying = state == GrandExchangeOfferState.BUYING;
+			SlotColor color = buying || state == GrandExchangeOfferState.SELLING
+				? SlotColor.of(buying, offer.getPrice(), prices.get(offer.getItemId()))
+				: SlotColor.NONE;
+			outbid |= cues.slotColor(i, color);
+		}
+		if (outbid)
+		{
+			playCue(SoundCue.OUTBID);
+		}
+	}
+
+	/** The optional panel hotkeys. Client thread. */
+	private class Shortcuts implements OfferHotkeys.Shortcuts
+	{
+		@Override
+		public void toggleHighlights()
+		{
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "highlightOffers", !config.highlightOffers());
+		}
+
+		@Override
+		public void refresh()
+		{
+			suggestions.invalidate();
+		}
+
+		@Override
+		public void nextProfile()
+		{
+			profiles.switchToNext();
+		}
+
+		@Override
+		public void toggleView()
+		{
+			GpGeniusConfig.ViewMode next = config.viewMode() == GpGeniusConfig.ViewMode.ADVANCED
+				? GpGeniusConfig.ViewMode.SIMPLE
+				: GpGeniusConfig.ViewMode.ADVANCED;
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "viewMode", next);
+		}
+
+		@Override
+		public void toggleCompact()
+		{
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "compactLayout", !config.compactLayout());
+		}
 	}
 
 	/** Items whose market price the slot colours and guard need: open offers, the offer being set up, the suggestion. */
@@ -545,6 +743,113 @@ public class GpGeniusPlugin extends Plugin
 		guard.setReason(reason);
 	}
 
+	/** Client thread. Sends the check-in reminder when one is due; never while the player is at the GE. */
+	private void checkIn(long now)
+	{
+		boolean atGe = client.getGameState() == GameState.LOGGED_IN && ge.isOpen();
+		suggestions.noteGe(atGe, now);
+		if (atGe)
+		{
+			digest.seen(now);
+			return;
+		}
+		boolean quiet = config.quietHours()
+			&& CheckInDigest.inQuietHours(LocalTime.now().getHour(), config.quietStart(), config.quietEnd());
+		if (digest.due(now, config.checkIn().minutes * 60_000L, quiet))
+		{
+			notifier.notify(sounds(config.checkInNotification()), digest.drain(now));
+		}
+	}
+
+	/** Carries settings from older versions over to their replacements. */
+	private void migrateSettings()
+	{
+		if (config.f2pOnly())
+		{
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "itemScope", GpGeniusConfig.ItemScope.F2P);
+			configManager.unsetConfiguration(GpGeniusConfig.GROUP, "f2pOnly");
+		}
+	}
+
+	/** Client thread. Reads Flipping Utilities' saved trades for this character off the client thread, then merges them. */
+	private void importHistory()
+	{
+		if (trades == null || accountHash == -1)
+		{
+			SwingUtilities.invokeLater(() -> panel.showImportMessage("Log in first, on the character whose history you want."));
+			return;
+		}
+		if (importInFlight)
+		{
+			return;
+		}
+		final String name = playerName();
+		final File file = FlippingUtilitiesImport.fileFor(RuneLite.RUNELITE_DIR, name);
+		if (file == null)
+		{
+			SwingUtilities.invokeLater(() -> panel.showImportMessage("Wait until your character has loaded, then try again."));
+			return;
+		}
+		importInFlight = true;
+		final AccountTrades target = trades;
+		executor.execute(() ->
+		{
+			FlippingUtilitiesImport.Result result = null;
+			String failure = null;
+			if (!file.isFile())
+			{
+				failure = "No Flipping Utilities history found for " + name + " (looked for .runelite/flipping/"
+					+ file.getName() + ").";
+			}
+			else
+			{
+				try
+				{
+					result = FlippingUtilitiesImport.read(file);
+				}
+				catch (IOException e)
+				{
+					log.debug("Flipping Utilities import failed", e);
+					failure = e.getMessage();
+				}
+			}
+			final FlippingUtilitiesImport.Result read = result;
+			final String error = failure;
+			clientThread.invokeLater(() ->
+			{
+				importInFlight = false;
+				if (error != null || target != trades)
+				{
+					final String message = error != null ? error : "You logged out before the import finished.";
+					SwingUtilities.invokeLater(() -> panel.showImportMessage(message));
+					return;
+				}
+				for (Transaction t : read.trades)
+				{
+					if (t.itemName == null || t.itemName.isEmpty())
+					{
+						t.itemName = itemManager.getItemComposition(t.itemId).getName();
+					}
+				}
+				int added = trades.importHistory(read.trades);
+				usage.add("panel.import");
+				if (added > 0)
+				{
+					saveAsync();
+					updatePanel();
+					suggestions.invalidate();
+					lastSyncMillis = 0;
+				}
+				int already = read.trades.size() - added;
+				final String message = read.trades.isEmpty()
+					? "Flipping Utilities had no trades saved for " + name + "."
+					: String.format("Imported %,d trades from Flipping Utilities%s.", added,
+						already > 0 ? String.format(" (%,d were already here)", already) : "");
+				SwingUtilities.invokeLater(() -> panel.showImportMessage(message));
+			});
+		});
+	}
+
 	private long coins()
 	{
 		net.runelite.api.ItemContainer inv = client.getItemContainer(InventoryID.INV);
@@ -566,7 +871,7 @@ public class GpGeniusPlugin extends Plugin
 	/** Client thread. */
 	private void onNewAlert(com.gpgenius.api.DumpAlert alert)
 	{
-		notifier.notify(config.dumpNotification(), String.format("Dump alert: %s is %.0f%% below its usual price.",
+		notifier.notify(sounds(config.dumpNotification()), String.format("Dump alert: %s is %.0f%% below its usual price.",
 			alert.name, alert.dropPercent));
 	}
 
@@ -583,12 +888,46 @@ public class GpGeniusPlugin extends Plugin
 		if (auth.getState() != AuthState.SIGNED_IN)
 		{
 			me = null;
+			profiles.reset();
+			updateProfilePanel();
 		}
+		lastProfileLoadMillis = 0;
 		lastHelloMillis = 0;
 		lastSyncMillis = 0;
 		suggestions.invalidate();
 		updateAccountPanel();
 		updateSuggestionPanel();
+	}
+
+	/** Any thread. Redraws the profile bar and preset buttons. */
+	private void updateProfilePanel()
+	{
+		final java.util.List<com.gpgenius.setup.Preset> presetList = profiles.getPresets();
+		final java.util.List<com.gpgenius.api.Profiles.Profile> list = profiles.getProfiles();
+		final String active = profiles.activeId();
+		final String error = profiles.getError();
+		SwingUtilities.invokeLater(() -> panel.showProfiles(presetList, list, active, error));
+	}
+
+	/**
+	 * The notification as set, or the same without sound when the profile's sounds are off. A
+	 * notification that uses RuneLite's defaults is rebuilt from them with the sound off.
+	 */
+	private Notification sounds(Notification n)
+	{
+		if (config.sounds() || n == null || !n.isEnabled())
+		{
+			return n;
+		}
+		if (n.isOverride() && n.isInitialized())
+		{
+			return n.withSound(NotificationSound.OFF);
+		}
+		RuneLiteConfig rl = runeLiteConfig;
+		return new Notification(true, true, true, rl.enableTrayNotifications(), n.getTrayIconType(),
+			rl.notificationRequestFocus(), NotificationSound.OFF, null, rl.notificationVolume(), rl.notificationTimeout(),
+			rl.enableGameMessageNotification(), rl.flashNotification(), rl.notificationFlashColor(),
+			rl.sendNotificationsWhenFocused());
 	}
 
 	/** Client thread. Links the game account and refreshes plan and announcements. */
@@ -797,6 +1136,80 @@ public class GpGeniusPlugin extends Plugin
 		}
 
 		@Override
+		public void favourite()
+		{
+			usage.add("panel.favourite");
+			clientThread.invokeLater(() ->
+			{
+				Integer itemId = suggestions.blockableItemId();
+				if (itemId != null)
+				{
+					configManager.setConfiguration(GpGeniusConfig.GROUP, "favouriteItems",
+						RequestBuilder.withItemId(config.favouriteItems(), itemId));
+				}
+			});
+		}
+
+		@Override
+		public void importHistory()
+		{
+			clientThread.invokeLater(GpGeniusPlugin.this::importHistory);
+		}
+
+		@Override
+		public void choosePreset(String presetId)
+		{
+			com.gpgenius.setup.Preset preset = com.gpgenius.setup.Preset.byId(profiles.getPresets(), presetId);
+			if (preset == null)
+			{
+				return;
+			}
+			usage.add("setup." + preset.key());
+			profiles.choosePreset(preset);
+		}
+
+		@Override
+		public void switchProfile(String profileId)
+		{
+			usage.add("profile.switch");
+			profiles.switchTo(profileId);
+		}
+
+		@Override
+		public void newProfile(String name)
+		{
+			usage.add("profile.new");
+			profiles.create(name);
+		}
+
+		@Override
+		public void renameProfile(String profileId, String name)
+		{
+			profiles.rename(profileId, name);
+		}
+
+		@Override
+		public void deleteProfile(String profileId)
+		{
+			usage.add("profile.delete");
+			profiles.delete(profileId);
+		}
+
+		@Override
+		public void skipSetup()
+		{
+			usage.add("setup.skip");
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "setupDone", true);
+		}
+
+		@Override
+		public void dismissPlan()
+		{
+			usage.add("panel.hide_plan");
+			clientThread.invokeLater(suggestions::dismissPlan);
+		}
+
+		@Override
 		public void rate(int rating)
 		{
 			usage.add(rating > 0 ? "panel.rate_good" : "panel.rate_bad");
@@ -821,29 +1234,29 @@ public class GpGeniusPlugin extends Plugin
 		}
 
 		@Override
+		public void dismissAnnouncement(String announcementId)
+		{
+			usage.add("panel.close_announcement");
+			api.dismissAnnouncement(announcementId);
+		}
+
+		@Override
+		public void openAnnouncementLink(String url)
+		{
+			if (com.gpgenius.api.Announcements.opensOn(url, auth.server()))
+			{
+				usage.add("panel.announcement_link");
+				browse(url);
+			}
+		}
+
+		@Override
 		public void chartPeriod(String period)
 		{
 			usage.add("panel.chart_" + period);
 			clientThread.invokeLater(() -> chart.setPeriod(period));
 		}
 
-		@Override
-		public void explain()
-		{
-			usage.add("panel.explain");
-			clientThread.invokeLater(() ->
-			{
-				Suggestion current = suggestions.getCurrent();
-				if (current == null || current.itemId == null)
-				{
-					SwingUtilities.invokeLater(() -> panel.showExplanation(null));
-					return;
-				}
-				api.explain(current.itemId,
-					answer -> SwingUtilities.invokeLater(() -> panel.showExplanation(answer == null ? null : answer.answer)),
-					message -> SwingUtilities.invokeLater(() -> panel.showExplanation(message)));
-			});
-		}
 	}
 
 	static OfferStatus toStatus(GrandExchangeOfferState state)

@@ -1,12 +1,16 @@
 package com.gpgenius.ui;
 
+import com.gpgenius.api.Announcements;
 import com.gpgenius.api.DeviceStart;
 import com.gpgenius.api.DumpAlert;
 import com.gpgenius.api.Me;
 import com.gpgenius.api.PriceHistory;
+import com.gpgenius.api.Profiles;
+import com.gpgenius.api.SlotPlan;
 import com.gpgenius.api.Suggestion;
 import com.gpgenius.auth.AuthState;
 import com.gpgenius.auth.DataConsent;
+import com.gpgenius.setup.Preset;
 import com.gpgenius.tracking.Flip;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -14,10 +18,13 @@ import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -29,8 +36,8 @@ import net.runelite.client.util.QuantityFormatter;
 /**
  * Side panel: account, the next step, dump alerts, a price chart, profit, then recent flips.
  *
- * <p>The simple view shows the next step and profit. The advanced view adds the reasoning, ratings,
- * "why this item?" and the full flip list. Everything is drawn in the chosen {@link Theme}, all of
+ * <p>The simple view shows the next step and profit. The advanced view adds the step's detail, ratings
+ * and the full flip list. Everything is drawn in the chosen {@link Theme}, all of
  * which are dark. All methods must be called on the Swing thread.</p>
  */
 public class FlipperPanel extends PluginPanel
@@ -57,6 +64,8 @@ public class FlipperPanel extends PluginPanel
 	private final ThemedButton signOutButton = button("Sign out", null, ThemedButton.Style.GHOST);
 	private final ThemedButton agreeButton = button("Agree", "Agree to the data notice and carry on", ThemedButton.Style.PRIMARY);
 	private final JPanel announcements = column();
+	/** Announcements closed this session, hidden even before the server hears about it. */
+	private final Set<String> closedAnnouncements = new HashSet<>();
 
 	private final RoundedPanel suggestionCard = card();
 	private final Pill actionPill = new Pill();
@@ -65,17 +74,61 @@ public class FlipperPanel extends PluginPanel
 	private final JLabel suggestionProfit = new JLabel();
 	private final JLabel suggestionReason = new JLabel();
 	private final JLabel suggestionError = new JLabel();
-	private final JLabel explanation = new JLabel();
+	private final JLabel marketWarning = new JLabel();
 	private final ThemedButton skipButton = button("Skip", "Get a different suggestion", ThemedButton.Style.SECONDARY);
 	private final ThemedButton blockButton = button("Block", "Never suggest this item again. Undo it in settings under Blocked items.", ThemedButton.Style.GHOST);
 	private final ThemedButton goodButton = button("Good", "Rate this suggestion as good", ThemedButton.Style.GHOST);
 	private final ThemedButton badButton = button("Bad", "Rate this suggestion as bad", ThemedButton.Style.GHOST);
-	private final ThemedButton whyButton = button("Why?", "Explain why this item was suggested", ThemedButton.Style.GHOST);
 	/** Skip and Block on one row, the advanced view's ratings on a second, so nothing is cut off. */
 	private final JPanel feedbackRow = column();
 	private final JPanel actionRow = row();
 	private final JPanel rateRow = row();
 	private String suggestionAction;
+
+	private final ThemedButton favouriteButton = button("Favourite", "Prefer this item when it's a good flip. Undo it in settings under Favourite items.", ThemedButton.Style.GHOST);
+
+	private final RoundedPanel setupCard = card();
+	private final JLabel setupTitle = new JLabel("Pick how you play");
+	private final JLabel setupIntro = new JLabel();
+	private final JPanel presetGrid = new JPanel(new GridLayout(0, 1, 0, 4));
+	private final JLabel setupPresetBlurb = new JLabel();
+	private final ThemedButton skipSetupButton = button("Skip", "Keep the current settings", ThemedButton.Style.GHOST);
+	private final ThemedButton openSetupButton = button("Presets", "Start again from a preset", ThemedButton.Style.GHOST);
+	private List<Preset> presets = Preset.BUILT_IN;
+
+	private final JPanel profileBar = new JPanel(new BorderLayout(4, 0));
+	private final JComboBox<Profiles.Profile> profileBox = new JComboBox<>();
+	private final ThemedButton newProfileButton = button("New", "Save the current settings as a new profile", ThemedButton.Style.GHOST);
+	private final ThemedButton renameProfileButton = button("Rename", "Rename this profile", ThemedButton.Style.GHOST);
+	private final ThemedButton deleteProfileButton = button("Delete", "Delete this profile", ThemedButton.Style.GHOST);
+	private final JLabel profileError = new JLabel();
+	/** True while the profile menu is being refilled, so that isn't taken as the player switching. */
+	private boolean fillingProfiles;
+	private boolean compact;
+
+	private final RoundedPanel tourCard = card();
+	private final JLabel tourTitle = new JLabel("How it works");
+	private final JLabel tourText = new JLabel();
+	private final ThemedButton tourDoneButton = button("Got it", null, ThemedButton.Style.SECONDARY);
+
+	private final RoundedPanel planCard = card();
+	private final JLabel planTitle = new JLabel("Welcome back");
+	private final JLabel planSummary = new JLabel();
+	private final JPanel planSteps = column();
+	private final JLabel planNote = new JLabel();
+	private final ThemedButton hidePlanButton = button("Hide", "Go back to one step at a time", ThemedButton.Style.GHOST);
+	private Suggestion.Plan plan;
+	private final RoundedPanel slotsCard = card();
+	private final JLabel slotsTitle = new JLabel("GE slots");
+	private final JLabel slotsSummary = new JLabel();
+	private final JPanel slotsTodo = column();
+	private final JPanel slotsList = column();
+	private final JLabel slotsNote = new JLabel();
+	private SlotPlan slotPlan;
+
+	private final JPanel importRow = column();
+	private final ThemedButton importButton = button("Import history", "Copy past flips from the Flipping Utilities plugin on this computer. Imported flips count in your profit, never in how accurate suggestions are.", ThemedButton.Style.GHOST);
+	private final JLabel importMessage = new JLabel();
 
 	private final JPanel alertList = column();
 
@@ -104,6 +157,8 @@ public class FlipperPanel extends PluginPanel
 	private boolean loggedIn;
 	private List<Flip> flips = Collections.emptyList();
 	private List<DumpAlert> alerts = Collections.emptyList();
+	/** Large-text mode; follows rows added later too. */
+	private final TextScale textScale = new TextScale();
 
 	public FlipperPanel(PanelActions actions)
 	{
@@ -114,9 +169,14 @@ public class FlipperPanel extends PluginPanel
 		JPanel content = column();
 		content.add(header());
 		content.add(Box.createVerticalStrut(8));
+		content.add(profileBar(actions));
+		content.add(setupCard(actions));
+		content.add(tourCard());
 		content.add(accountCard(actions));
 		content.add(Box.createVerticalStrut(8));
 		content.add(announcements);
+		content.add(planCard(actions));
+		content.add(slotsCard());
 		content.add(suggestionCard(actions));
 		content.add(Box.createVerticalStrut(8));
 		content.add(alertList);
@@ -127,6 +187,7 @@ public class FlipperPanel extends PluginPanel
 		content.add(flipsHeading);
 		content.add(Box.createVerticalStrut(4));
 		content.add(flipList);
+		content.add(importRow(actions));
 		add(content, BorderLayout.NORTH);
 
 		painters.add(() ->
@@ -142,7 +203,20 @@ public class FlipperPanel extends PluginPanel
 		update(false, 0, 0, Collections.emptyList());
 		showSuggestion(false, null, null);
 		showChart(null, "day", null);
+		showSetup(false);
+		showPlan(null);
+		showSlots(null);
+		showImportMessage(null);
 		setTheme(theme);
+		textScale.install(this);
+	}
+
+	/** Panel text size, 1 for normal. Safe to call at any time on the Swing thread. */
+	public void setTextScale(float scale)
+	{
+		textScale.setScale(this, scale);
+		revalidate();
+		repaint();
 	}
 
 	/** Re-colours everything. Safe to call at any time on the Swing thread. */
@@ -157,6 +231,8 @@ public class FlipperPanel extends PluginPanel
 		// Rows built from data pick up the theme when rebuilt.
 		showAlerts(alerts);
 		update(loggedIn, sessionProfit, allTimeProfit, flips);
+		showPlan(plan);
+		showSlots(slotPlan);
 		recolorSuggestion();
 		revalidate();
 		repaint();
@@ -176,11 +252,431 @@ public class FlipperPanel extends PluginPanel
 		planPill.setFont(FontManager.getRunescapeSmallFont());
 		planPill.setVisible(false);
 		header.add(title, BorderLayout.WEST);
-		JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 2));
+		JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 2));
 		right.setOpaque(false);
+		openSetupButton.addActionListener(e -> showSetup(true));
+		right.add(openSetupButton);
 		right.add(planPill);
 		header.add(right, BorderLayout.EAST);
 		return header;
+	}
+
+	private JComponent setupCard(PanelActions actions)
+	{
+		JPanel text = column();
+		setupTitle.setFont(FontManager.getRunescapeBoldFont());
+		setupIntro.setText(html("One click and your first suggestion arrives in seconds. Change anything later."));
+		stack(text, setupTitle, 2);
+		stack(text, setupIntro, 2);
+		presetGrid.setOpaque(false);
+		stack(text, presetGrid, 8);
+		setupPresetBlurb.setFont(FontManager.getRunescapeSmallFont());
+		stack(text, setupPresetBlurb, 6);
+		skipSetupButton.addActionListener(e ->
+		{
+			actions.skipSetup();
+			showSetup(false);
+		});
+		JPanel buttons = row();
+		buttons.add(skipSetupButton);
+		stack(text, buttons, 6);
+		setupCard.add(text, BorderLayout.CENTER);
+		fillPresets(actions);
+
+		painters.add(() ->
+		{
+			setupCard.setColors(theme.surface, theme.border);
+			setupCard.setStripe(theme.accent);
+			setupTitle.setForeground(theme.text);
+			setupIntro.setForeground(theme.muted);
+			setupPresetBlurb.setForeground(theme.muted);
+		});
+		return setupCard;
+	}
+
+	/** One button per preset; hovering shows what it's for, clicking starts with it. */
+	private void fillPresets(PanelActions actions)
+	{
+		presetGrid.removeAll();
+		for (Preset preset : presets)
+		{
+			ThemedButton b = button(preset.label, preset.blurb, ThemedButton.Style.SECONDARY);
+			b.setTheme(theme);
+			b.addActionListener(e ->
+			{
+				actions.choosePreset(preset.id);
+				showSetup(false);
+				tourCard.setVisible(true);
+				revalidate();
+				repaint();
+			});
+			b.addMouseListener(new java.awt.event.MouseAdapter()
+			{
+				@Override
+				public void mouseEntered(java.awt.event.MouseEvent e)
+				{
+					setupPresetBlurb.setText(html(preset.blurb));
+				}
+			});
+			presetGrid.add(b);
+		}
+		setupPresetBlurb.setText(html("Hover a preset to see what it's for."));
+		presetGrid.revalidate();
+	}
+
+	private JComponent profileBar(PanelActions actions)
+	{
+		profileBar.setOpaque(false);
+		profileBar.setAlignmentX(LEFT_ALIGNMENT);
+		profileBox.setFont(FontManager.getRunescapeSmallFont());
+		profileBox.setToolTipText("Your saved profiles. Switching changes your settings in one click.");
+		profileBox.setRenderer(new javax.swing.DefaultListCellRenderer()
+		{
+			@Override
+			public java.awt.Component getListCellRendererComponent(javax.swing.JList<?> list, Object value, int index,
+				boolean selected, boolean focused)
+			{
+				String name = value instanceof Profiles.Profile ? ((Profiles.Profile) value).name : "";
+				return super.getListCellRendererComponent(list, name, index, selected, focused);
+			}
+		});
+		profileBox.addActionListener(e ->
+		{
+			Object picked = profileBox.getSelectedItem();
+			if (!fillingProfiles && picked instanceof Profiles.Profile)
+			{
+				actions.switchProfile(((Profiles.Profile) picked).id);
+			}
+		});
+		newProfileButton.addActionListener(e ->
+		{
+			String name = askName("Name the new profile", "");
+			if (name != null)
+			{
+				actions.newProfile(name);
+			}
+		});
+		renameProfileButton.addActionListener(e ->
+		{
+			Object picked = profileBox.getSelectedItem();
+			if (picked instanceof Profiles.Profile)
+			{
+				Profiles.Profile p = (Profiles.Profile) picked;
+				String name = askName("Rename profile", p.name);
+				if (name != null)
+				{
+					actions.renameProfile(p.id, name);
+				}
+			}
+		});
+		deleteProfileButton.addActionListener(e ->
+		{
+			Object picked = profileBox.getSelectedItem();
+			if (picked instanceof Profiles.Profile
+				&& javax.swing.JOptionPane.showConfirmDialog(this, "Delete \"" + ((Profiles.Profile) picked).name + "\"?",
+				"GP Genius", javax.swing.JOptionPane.OK_CANCEL_OPTION) == javax.swing.JOptionPane.OK_OPTION)
+			{
+				actions.deleteProfile(((Profiles.Profile) picked).id);
+			}
+		});
+		JPanel buttons = new JPanel(new GridLayout(1, 3, 2, 0));
+		buttons.setOpaque(false);
+		buttons.add(newProfileButton);
+		buttons.add(renameProfileButton);
+		buttons.add(deleteProfileButton);
+		profileError.setFont(FontManager.getRunescapeSmallFont());
+		JPanel stackPanel = column();
+		stack(stackPanel, profileBox, 2);
+		stack(stackPanel, buttons, 2);
+		stack(stackPanel, profileError, 6);
+		profileBar.add(stackPanel, BorderLayout.CENTER);
+		painters.add(() -> profileError.setForeground(theme.loss));
+		profileBar.setVisible(false);
+		return profileBar;
+	}
+
+	private String askName(String title, String current)
+	{
+		Object answer = javax.swing.JOptionPane.showInputDialog(this, "Up to 40 characters.", title,
+			javax.swing.JOptionPane.PLAIN_MESSAGE, null, null, current);
+		if (!(answer instanceof String))
+		{
+			return null;
+		}
+		String name = ((String) answer).trim();
+		return name.isEmpty() ? null : name.substring(0, Math.min(40, name.length()));
+	}
+
+	/**
+	 * Saved profiles and the presets from the server. The bar is hidden until there is a profile.
+	 *
+	 * @param error the last profile request's error, or null
+	 */
+	public void showProfiles(List<Preset> presets, List<Profiles.Profile> profiles, String activeId, String error)
+	{
+		if (!presets.equals(this.presets))
+		{
+			this.presets = presets;
+			fillPresets(actions);
+		}
+		fillingProfiles = true;
+		try
+		{
+			profileBox.removeAllItems();
+			Profiles.Profile active = null;
+			for (Profiles.Profile p : profiles)
+			{
+				profileBox.addItem(p);
+				if (p.id.equals(activeId))
+				{
+					active = p;
+				}
+			}
+			profileBox.setSelectedItem(active);
+		}
+		finally
+		{
+			fillingProfiles = false;
+		}
+		renameProfileButton.setEnabled(profileBox.getSelectedItem() != null);
+		deleteProfileButton.setEnabled(profileBox.getSelectedItem() != null);
+		profileError.setText(error == null ? "" : html(error));
+		profileError.setVisible(error != null);
+		profileBar.setVisible(!profiles.isEmpty() || error != null);
+		revalidate();
+		repaint();
+	}
+
+	/** Compact hides the price chart and the flip list. */
+	public void setCompact(boolean compact)
+	{
+		if (this.compact != compact)
+		{
+			this.compact = compact;
+			chartCard.setVisible(false);
+			update(loggedIn, sessionProfit, allTimeProfit, flips);
+		}
+	}
+
+	/** Shows or hides the preset picker. */
+	public void showSetup(boolean show)
+	{
+		setupCard.setVisible(show);
+		setupCard.setBorder(new EmptyBorder(10, 12, 10, 10));
+		openSetupButton.setVisible(!show);
+		if (show)
+		{
+			tourCard.setVisible(false);
+		}
+		revalidate();
+		repaint();
+	}
+
+	private JComponent tourCard()
+	{
+		JPanel text = column();
+		tourTitle.setFont(FontManager.getRunescapeBoldFont());
+		tourText.setText(steps(
+			"The card below shows one next step: buy, sell, abort an offer, or wait.",
+			"In the GE, the slot, button or item to click is highlighted. In a price or quantity box, your hotkey (E) fills in the suggested value.",
+			"You click and confirm everything yourself. Nothing is done for you.",
+			"Leave it and come back when a reminder arrives. If several slots are free, you get a plan for all of them."));
+		stack(text, tourTitle, 2);
+		stack(text, tourText, 4);
+		tourCard.add(text, BorderLayout.CENTER);
+		tourDoneButton.addActionListener(e ->
+		{
+			tourCard.setVisible(false);
+			revalidate();
+			repaint();
+		});
+		JPanel buttons = row();
+		buttons.add(tourDoneButton);
+		tourCard.add(buttons, BorderLayout.SOUTH);
+		tourCard.setVisible(false);
+		painters.add(() ->
+		{
+			tourCard.setColors(theme.surface, theme.border);
+			tourCard.setStripe(theme.accent);
+			tourTitle.setForeground(theme.text);
+			tourText.setForeground(theme.muted);
+		});
+		return tourCard;
+	}
+
+	private JComponent planCard(PanelActions actions)
+	{
+		JPanel text = column();
+		planTitle.setFont(FontManager.getRunescapeBoldFont());
+		planSummary.setFont(FontManager.getRunescapeSmallFont());
+		stack(text, planTitle, 2);
+		stack(text, planSummary, 2);
+		stack(text, planSteps, 6);
+		stack(text, planNote, 6);
+		planNote.setText(html("Do each step yourself, in order. The highlight follows step 1, and the list updates as you go."));
+		planCard.add(text, BorderLayout.CENTER);
+		hidePlanButton.addActionListener(e -> actions.dismissPlan());
+		JPanel buttons = row();
+		buttons.add(hidePlanButton);
+		planCard.add(buttons, BorderLayout.SOUTH);
+		painters.add(() ->
+		{
+			planCard.setColors(theme.surface, theme.border);
+			planCard.setStripe(theme.accent);
+			planTitle.setForeground(theme.text);
+			planSummary.setForeground(theme.profit);
+			planNote.setForeground(theme.muted);
+		});
+		return planCard;
+	}
+
+	/** The welcome-back plan: every step for the free slots, or null to hide it. */
+	public void showPlan(Suggestion.Plan plan)
+	{
+		this.plan = plan;
+		planSteps.removeAll();
+		boolean show = plan != null && plan.steps != null && plan.steps.size() > 1;
+		if (show)
+		{
+			planTitle.setText(html("Welcome back: " + plan.steps.size() + " steps"));
+			String summary = "Uses " + QuantityFormatter.quantityToStackSize(plan.coinsUsed) + " gp";
+			if (plan.expectedProfit > 0)
+			{
+				summary += ", about +" + QuantityFormatter.quantityToStackSize(plan.expectedProfit) + " gp";
+			}
+			planSummary.setText(summary);
+			for (int i = 0; i < plan.steps.size(); i++)
+			{
+				Suggestion step = plan.steps.get(i);
+				if (step == null)
+				{
+					continue;
+				}
+				JLabel line = new JLabel(html((i + 1) + ". " + step.headline()));
+				line.setFont(i == 0 ? FontManager.getRunescapeBoldFont() : FontManager.getRunescapeFont());
+				line.setForeground(i == 0 && step.action != null ? theme.action(step.action) : theme.text);
+				stack(planSteps, line, 2);
+			}
+		}
+		planCard.setVisible(show);
+		planCard.setBorder(new EmptyBorder(10, 12, 10, 10));
+		planSteps.revalidate();
+		revalidate();
+		repaint();
+	}
+
+	private JComponent slotsCard()
+	{
+		JPanel text = column();
+		slotsTitle.setFont(FontManager.getRunescapeBoldFont());
+		slotsSummary.setFont(FontManager.getRunescapeSmallFont());
+		slotsNote.setFont(FontManager.getRunescapeSmallFont());
+		stack(text, slotsTitle, 2);
+		stack(text, slotsSummary, 2);
+		stack(text, slotsTodo, 6);
+		stack(text, slotsList, 6);
+		stack(text, slotsNote, 6);
+		slotsCard.add(text, BorderLayout.CENTER);
+		painters.add(() ->
+		{
+			slotsCard.setColors(theme.surface, theme.border);
+			slotsCard.setStripe(theme.accent);
+			slotsTitle.setForeground(theme.text);
+			slotsSummary.setForeground(theme.profit);
+			slotsNote.setForeground(theme.muted);
+		});
+		return slotsCard;
+	}
+
+	/** The slot manager: a to-do list for this check-in and what each slot holds after it. Null hides it. */
+	public void showSlots(SlotPlan plan)
+	{
+		this.slotPlan = plan;
+		slotsTodo.removeAll();
+		slotsList.removeAll();
+		boolean show = plan != null && plan.slots != null && !plan.slots.isEmpty();
+		if (show)
+		{
+			int todo = plan.steps == null ? 0 : plan.steps.size();
+			slotsTitle.setText(html(todo == 0 ? "GE slots: all set" : "GE slots: " + todo + (todo == 1 ? " step" : " steps")));
+			String summary = "";
+			if (plan.coinsUsed > 0)
+			{
+				summary = "Places " + QuantityFormatter.quantityToStackSize(plan.coinsUsed) + " gp";
+				if (plan.expectedProfit > 0)
+				{
+					summary += ", about +" + QuantityFormatter.quantityToStackSize(plan.expectedProfit) + " gp";
+				}
+			}
+			slotsSummary.setText(summary);
+			slotsSummary.setVisible(!summary.isEmpty());
+			if (plan.steps != null)
+			{
+				for (SlotPlan.Step step : plan.steps)
+				{
+					JLabel line = new JLabel(html((step.order == null ? "" : step.order + ". ") + step.todo()));
+					line.setFont(FontManager.getRunescapeFont());
+					line.setForeground(step.loss ? theme.loss : theme.text);
+					stack(slotsTodo, line, 2);
+				}
+			}
+			for (SlotPlan.Step slot : plan.slots)
+			{
+				JLabel line = new JLabel(html("Slot " + (slot.slot + 1) + ": " + slot.status()));
+				line.setFont(FontManager.getRunescapeSmallFont());
+				line.setForeground(theme.muted);
+				stack(slotsList, line, 1);
+			}
+			if (plan.holds != null)
+			{
+				for (SlotPlan.Hold hold : plan.holds)
+				{
+					JLabel line = new JLabel(html("Holding " + hold.name + " out of the GE for now"));
+					line.setFont(FontManager.getRunescapeSmallFont());
+					line.setForeground(theme.muted);
+					stack(slotsList, line, 1);
+				}
+			}
+			String next = plan.nextCheckIn(java.time.ZoneId.systemDefault());
+			slotsNote.setText(html((next == null ? "" : "Next check-in around " + next + ". ")
+				+ "Do each step yourself, in order."));
+		}
+		slotsCard.setVisible(show);
+		slotsCard.setBorder(new EmptyBorder(10, 12, 10, 10));
+		slotsTodo.revalidate();
+		slotsList.revalidate();
+		revalidate();
+		repaint();
+	}
+
+	private JComponent importRow(PanelActions actions)
+	{
+		importMessage.setFont(FontManager.getRunescapeSmallFont());
+		importButton.addActionListener(e ->
+		{
+			importButton.setEnabled(false);
+			showImportMessage("Importing...");
+			actions.importHistory();
+		});
+		JPanel buttons = row();
+		buttons.add(importButton);
+		stack(importRow, buttons, 0);
+		stack(importRow, importMessage, 4);
+		importRow.setBorder(new EmptyBorder(8, 0, 0, 0));
+		painters.add(() -> importMessage.setForeground(theme.muted));
+		return importRow;
+	}
+
+	/** The result of the last import, or null to clear it. Re-enables the button. */
+	public void showImportMessage(String message)
+	{
+		importMessage.setText(message == null ? "" : html(message));
+		importMessage.setVisible(message != null);
+		if (!"Importing...".equals(message))
+		{
+			importButton.setEnabled(true);
+		}
+		revalidate();
 	}
 
 	private JComponent accountCard(PanelActions actions)
@@ -237,12 +733,17 @@ public class FlipperPanel extends PluginPanel
 		stack(text, suggestionPrice, 2);
 		stack(text, suggestionProfit, 2);
 		stack(text, suggestionReason, 2);
+		stack(text, marketWarning, 2);
 		stack(text, suggestionError, 2);
-		stack(text, explanation, 2);
 		suggestionCard.add(text, BorderLayout.CENTER);
 
 		skipButton.addActionListener(e -> actions.skip());
 		blockButton.addActionListener(e -> actions.block());
+		favouriteButton.addActionListener(e ->
+		{
+			actions.favourite();
+			favouriteButton.setEnabled(false);
+		});
 		goodButton.addActionListener(e ->
 		{
 			actions.rate(1);
@@ -255,17 +756,11 @@ public class FlipperPanel extends PluginPanel
 			goodButton.setEnabled(false);
 			badButton.setEnabled(false);
 		});
-		whyButton.addActionListener(e ->
-		{
-			whyButton.setEnabled(false);
-			showExplanation("Asking...");
-			actions.explain();
-		});
 		actionRow.add(skipButton);
+		actionRow.add(favouriteButton);
 		actionRow.add(blockButton);
 		rateRow.add(goodButton);
 		rateRow.add(badButton);
-		rateRow.add(whyButton);
 		stack(feedbackRow, actionRow, 4);
 		stack(feedbackRow, rateRow, 0);
 		suggestionCard.add(feedbackRow, BorderLayout.SOUTH);
@@ -285,7 +780,7 @@ public class FlipperPanel extends PluginPanel
 		suggestionProfit.setForeground(theme.profit);
 		suggestionReason.setForeground(theme.muted);
 		suggestionError.setForeground(theme.loss);
-		explanation.setForeground(theme.muted);
+		marketWarning.setForeground(theme.warning);
 	}
 
 	private JComponent chartCard(PanelActions actions)
@@ -353,7 +848,7 @@ public class FlipperPanel extends PluginPanel
 	/** Shows the chart, or hides the card when there is no item to chart. */
 	public void showChart(PriceHistory history, String period, String error)
 	{
-		chartCard.setVisible(history != null || error != null);
+		chartCard.setVisible(!compact && (history != null || error != null));
 		chartTitle.setText(history == null || history.name == null ? "Price history" : html(history.name, 110));
 		chart.setHistory(history);
 		chartError.setText(error == null ? "" : html(error));
@@ -442,23 +937,57 @@ public class FlipperPanel extends PluginPanel
 		accountError.setVisible(error != null);
 
 		announcements.removeAll();
-		if (state == AuthState.SIGNED_IN && me != null && me.announcements != null)
+		if (state == AuthState.SIGNED_IN && me != null)
 		{
-			for (Me.Announcement a : me.announcements)
+			for (Me.Announcement a : Announcements.visible(me.announcements, closedAnnouncements))
 			{
-				RoundedPanel note = card();
-				boolean warning = "warning".equals(a.level);
-				note.setColors(theme.surface, theme.border);
-				note.setStripe(warning ? theme.warning : theme.accent);
-				JLabel label = new JLabel(html(a.message));
-				label.setForeground(warning ? theme.warning : theme.text);
-				note.add(label, BorderLayout.CENTER);
-				stack(announcements, note, 6);
+				stack(announcements, announcementCard(a), 6);
 			}
 		}
 		announcements.setVisible(announcements.getComponentCount() > 0);
 		announcements.setBorder(new EmptyBorder(0, 0, announcements.isVisible() ? 8 : 0, 0));
 		announcements.revalidate();
+	}
+
+	private RoundedPanel announcementCard(Me.Announcement a)
+	{
+		RoundedPanel note = card();
+		Color stripe = a.isCritical() ? theme.loss : a.isWarning() ? theme.warning : theme.accent;
+		note.setColors(theme.surface, theme.border);
+		note.setStripe(stripe);
+		String text = a.title == null || a.title.isEmpty() ? a.message : a.title + ": " + a.message;
+		JLabel label = new JLabel(html(text));
+		label.setForeground(a.isCritical() ? theme.loss : a.isWarning() ? theme.warning : theme.text);
+		note.add(label, BorderLayout.CENTER);
+		JPanel buttons = row();
+		if (a.linkUrl != null && !a.linkUrl.isEmpty())
+		{
+			ThemedButton more = button("Read more", "Opens in your browser", ThemedButton.Style.GHOST);
+			more.setTheme(theme);
+			more.addActionListener(e -> actions.openAnnouncementLink(a.linkUrl));
+			buttons.add(more);
+		}
+		if (a.canDismiss())
+		{
+			ThemedButton close = button("Close", "Hide this message here and on the website", ThemedButton.Style.GHOST);
+			close.setTheme(theme);
+			close.addActionListener(e ->
+			{
+				// Hide it straight away; the server remembers it for next time.
+				closedAnnouncements.add(a.id);
+				announcements.remove(note);
+				announcements.setVisible(announcements.getComponentCount() > 0);
+				announcements.revalidate();
+				announcements.repaint();
+				actions.dismissAnnouncement(a.id);
+			});
+			buttons.add(close);
+		}
+		if (buttons.getComponentCount() > 0)
+		{
+			note.add(buttons, BorderLayout.SOUTH);
+		}
+		return note;
 	}
 
 	/**
@@ -498,9 +1027,15 @@ public class FlipperPanel extends PluginPanel
 			{
 				profit = "+" + gp(suggestion.expectedProfit) + " est. profit";
 			}
-			if (suggestion.reason != null && (advanced || suggestion.is(Suggestion.WAIT) || suggestion.is(Suggestion.ABORT)))
+			// Until the first flip is done, every step comes with its reason, as part of the first-run tour.
+			boolean firstFlip = loggedIn && flips.isEmpty();
+			if (suggestion.reason != null && (advanced || firstFlip || suggestion.loss || suggestion.is(Suggestion.WAIT) || suggestion.is(Suggestion.ABORT)))
 			{
 				reason = suggestion.reason;
+			}
+			for (String line : suggestion.details())
+			{
+				reason = reason.isEmpty() ? line : reason + "\n" + line;
 			}
 		}
 		suggestionAction = action;
@@ -514,23 +1049,26 @@ public class FlipperPanel extends PluginPanel
 		suggestionReason.setVisible(!reason.isEmpty());
 		suggestionError.setText(error == null ? "" : html(error));
 		suggestionError.setVisible(error != null);
+		// Market warnings show in simple and advanced mode alike, even when the reason is hidden.
+		String warning = enabled && suggestion != null ? String.join(" ", suggestion.warnings(reason)) : "";
+		marketWarning.setText(html(warning));
+		marketWarning.setVisible(!warning.isEmpty());
 		recolorSuggestion();
 
 		boolean hasItem = enabled && suggestion != null && suggestion.itemId != null;
 		boolean rateable = hasItem && suggestion.suggestionId != null;
 		skipButton.setVisible(hasItem);
 		blockButton.setVisible(hasItem && suggestion.is(Suggestion.BUY));
+		favouriteButton.setVisible(hasItem && suggestion.is(Suggestion.BUY));
 		goodButton.setVisible(advanced && rateable);
 		badButton.setVisible(advanced && rateable);
-		whyButton.setVisible(advanced && hasItem && suggestion.is(Suggestion.BUY));
-		rateRow.setVisible(goodButton.isVisible() || whyButton.isVisible());
+		rateRow.setVisible(goodButton.isVisible());
 		feedbackRow.setVisible(hasItem);
 		if (changed)
 		{
+			favouriteButton.setEnabled(true);
 			goodButton.setEnabled(true);
 			badButton.setEnabled(true);
-			whyButton.setEnabled(true);
-			showExplanation(null);
 		}
 		revalidate();
 	}
@@ -583,16 +1121,6 @@ public class FlipperPanel extends PluginPanel
 		alertList.repaint();
 	}
 
-	public void showExplanation(String text)
-	{
-		explanation.setText(text == null ? "" : html(text));
-		explanation.setVisible(text != null);
-		if (text == null)
-		{
-			whyButton.setEnabled(true);
-		}
-	}
-
 	public void update(boolean loggedIn, long sessionProfit, long allTimeProfit, List<Flip> recentFlips)
 	{
 		this.loggedIn = loggedIn;
@@ -620,6 +1148,9 @@ public class FlipperPanel extends PluginPanel
 			stack(flipList, flipRow(flip), 4);
 			shown++;
 		}
+		importRow.setVisible(loggedIn && !compact);
+		flipsHeading.setVisible(!compact);
+		flipList.setVisible(!compact);
 		flipList.revalidate();
 		flipList.repaint();
 	}
@@ -730,7 +1261,8 @@ public class FlipperPanel extends PluginPanel
 	static String html(String text, int width)
 	{
 		return "<html><body style='width:" + width + "px'>"
-			+ text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") + "</body></html>";
+			+ text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
+			+ "</body></html>";
 	}
 
 	private static String gp(long amount)

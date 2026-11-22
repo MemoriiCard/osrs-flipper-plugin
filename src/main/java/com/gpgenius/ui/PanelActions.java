@@ -25,13 +25,41 @@ public interface PanelActions
 	/** 1 for good, -1 for bad. */
 	void rate(int rating);
 
-	void explain();
-
 	/** Make a dump alert the current suggestion. */
 	void useAlert(com.gpgenius.api.DumpAlert alert);
 
 	void dismissAlert(String alertId);
 
+	/** Closes an announcement (here and, for signed-in players, everywhere else). */
+	void dismissAnnouncement(String announcementId);
+
+	/** Opens an announcement's "Read more" link, if it's on the GP Genius server. */
+	void openAnnouncementLink(String url);
+
 	/** day, week or month */
 	void chartPeriod(String period);
+
+	/** Prefer the current item when it's a good flip. */
+	void favourite();
+
+	/** Copy past trades from the Flipping Utilities plugin's files on this computer. */
+	void importHistory();
+
+	/** Start with a fast-start preset, by its id. */
+	void choosePreset(String presetId);
+
+	void switchProfile(String profileId);
+
+	/** Save the current settings as a new profile and switch to it. */
+	void newProfile(String name);
+
+	void renameProfile(String profileId, String name);
+
+	void deleteProfile(String profileId);
+
+	/** Close the preset picker without changing settings. */
+	void skipSetup();
+
+	/** Hide the welcome-back plan and go back to one step at a time. */
+	void dismissPlan();
 }

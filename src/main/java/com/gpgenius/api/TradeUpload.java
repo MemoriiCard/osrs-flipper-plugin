@@ -25,5 +25,7 @@ public class TradeUpload
 		public long total;
 		@SerializedName("timestamp_ms")
 		public long timestampMs;
+		/** From another tracker's history; the server keeps it out of suggestion accuracy numbers. */
+		public boolean imported;
 	}
 }

@@ -221,6 +221,12 @@ public class GrandExchangeWidgets
 		return PromptType.NONE;
 	}
 
+	/** The chatbox box the player types the price or quantity into. */
+	public Widget promptInput()
+	{
+		return client.getWidget(ComponentID.CHATBOX_FULL_INPUT);
+	}
+
 	/**
 	 * Puts a value into the open price or quantity prompt. The player still presses Enter to accept it.
 	 */

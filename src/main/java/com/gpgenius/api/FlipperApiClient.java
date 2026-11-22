@@ -47,6 +47,12 @@ public class FlipperApiClient
 	}
 
 	/** Links the game account to the player and returns their plan and announcements. */
+	/** The plan for every GE slot. Same body as a suggestion request. */
+	public void slots(SuggestionRequest body, Consumer<SlotPlan> onSuccess, Consumer<String> onError)
+	{
+		post("/v1/slots", body, SlotPlan.class, onSuccess, onError);
+	}
+
 	public void hello(String accountHash, String displayName, String version, Consumer<Me> onSuccess, Consumer<String> onError)
 	{
 		JsonObject body = new JsonObject();
@@ -54,6 +60,16 @@ public class FlipperApiClient
 		body.addProperty("display_name", displayName == null ? "" : displayName);
 		body.addProperty("plugin_version", version);
 		post("/v1/plugin/hello", body, Me.class, onSuccess, onError);
+	}
+
+	/** Closes an announcement for this player on the website and in every plugin they use. */
+	public void dismissAnnouncement(String announcementId)
+	{
+		if (announcementId == null || !announcementId.matches("[0-9a-fA-F-]{36}"))
+		{
+			return;
+		}
+		post("/v1/announcements/" + announcementId + "/dismiss", new JsonObject(), null, ignored -> { }, this::logOnly);
 	}
 
 	public void uploadTrades(TradeUpload body, Consumer<Integer> onSuccess, Consumer<String> onError)
@@ -88,13 +104,6 @@ public class FlipperApiClient
 		post("/v1/usage", body, null, ignored -> { }, this::logOnly);
 	}
 
-	public void explain(int itemId, Consumer<Explanation> onSuccess, Consumer<String> onError)
-	{
-		JsonObject body = new JsonObject();
-		body.addProperty("item_id", itemId);
-		post("/v1/explain", body, Explanation.class, onSuccess, onError);
-	}
-
 	public void alerts(String accountHash, long coins, long minProfit, boolean f2pOnly, boolean members,
 		Consumer<Alerts> onSuccess, Consumer<String> onError)
 	{
@@ -120,6 +129,32 @@ public class FlipperApiClient
 	public void priceHistory(int itemId, String period, Consumer<PriceHistory> onSuccess, Consumer<String> onError)
 	{
 		get("/v1/prices/" + itemId + "/history?period=" + period, PriceHistory.class, onSuccess, onError);
+	}
+
+	/** Saved profiles, which one is active, and the fast-start presets. */
+	public void profiles(Consumer<Profiles.Listing> onSuccess, Consumer<String> onError)
+	{
+		get("/v1/profiles", Profiles.Listing.class, onSuccess, onError);
+	}
+
+	public void createProfile(Profiles.Create body, Consumer<Profiles.Profile> onSuccess, Consumer<String> onError)
+	{
+		post("/v1/profiles", body, Profiles.Profile.class, onSuccess, onError);
+	}
+
+	public void updateProfile(String id, Profiles.Update body, Consumer<Profiles.Profile> onSuccess, Consumer<String> onError)
+	{
+		post("/v1/profiles/" + id, body, Profiles.Profile.class, onSuccess, onError);
+	}
+
+	public void activateProfile(String id, Consumer<Profiles.Profile> onSuccess, Consumer<String> onError)
+	{
+		post("/v1/profiles/" + id + "/activate", new JsonObject(), Profiles.Profile.class, onSuccess, onError);
+	}
+
+	public void deleteProfile(String id, Runnable onSuccess, Consumer<String> onError)
+	{
+		post("/v1/profiles/" + id + "/delete", new JsonObject(), null, ignored -> onSuccess.run(), onError);
 	}
 
 	private <T> void post(String path, Object body, Class<T> type, Consumer<T> onSuccess, Consumer<String> onError)
@@ -159,15 +194,6 @@ public class FlipperApiClient
 	private void logOnly(String message)
 	{
 		log.debug("Background request failed: {}", message);
-	}
-
-	/** Reply to "why this item?". */
-	public static class Explanation
-	{
-		public String answer;
-		public String source;
-		@com.google.gson.annotations.SerializedName("remaining_today")
-		public int remainingToday;
 	}
 
 	/** Reply from /v1/alerts. */

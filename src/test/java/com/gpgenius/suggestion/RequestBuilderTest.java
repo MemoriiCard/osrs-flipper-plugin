@@ -1,6 +1,7 @@
 package com.gpgenius.suggestion;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import com.gpgenius.GpGeniusConfig;
@@ -70,11 +71,79 @@ public class RequestBuilderTest
 		assertEquals("high", request.profile.risk);
 		assertEquals(480, request.profile.timeframeMinutes);
 		assertEquals(Collections.singletonList(2), request.profile.blockedItemIds);
-		assertEquals(0, request.profile.minProfitPerFlip);
+		assertEquals(Long.valueOf(0), request.profile.minProfitPerFlip);
 		assertEquals(123L, request.account.coins);
 		assertEquals(1, request.account.offers.size());
 		assertEquals(2, request.account.reservedSlots);
 		assertEquals(Collections.singletonList(7), request.account.skipItemIds);
 		assertTrue(!request.account.members);
+	}
+
+	@Test
+	public void limitsAreSentOnlyWhenSet()
+	{
+		Map<Integer, Long> inventory = Collections.singletonMap(995, 1L);
+		SuggestionRequest none = RequestBuilder.build(new RequestBuilder.Settings(), Collections.emptyList(), inventory,
+			Collections.emptyMap(), true, Collections.emptyList());
+		assertEquals(null, none.profile.coinCap);
+		assertEquals(null, none.profile.maxItemPercent);
+		assertEquals(null, none.profile.minItemPrice);
+		assertEquals(null, none.profile.maxItemPrice);
+		assertTrue(none.profile.favouriteItemIds.isEmpty());
+		assertTrue(none.profile.categories.isEmpty());
+
+		RequestBuilder.Settings settings = new RequestBuilder.Settings();
+		settings.coinCap = 50_000_000;
+		settings.maxItemPercent = 250;
+		settings.minItemPrice = 1_000;
+		settings.maxItemPrice = 5_000_000;
+		settings.favouriteItems = "4151, 4151 x 11802";
+		settings.categories = Arrays.asList("runes", "potions");
+		settings.membersOnly = true;
+		SuggestionRequest request = RequestBuilder.build(settings, Collections.emptyList(), inventory,
+			Collections.emptyMap(), true, Collections.emptyList());
+		assertEquals(Long.valueOf(50_000_000), request.profile.coinCap);
+		assertEquals(Integer.valueOf(100), request.profile.maxItemPercent);
+		assertEquals(Long.valueOf(1_000), request.profile.minItemPrice);
+		assertEquals(Long.valueOf(5_000_000), request.profile.maxItemPrice);
+		assertEquals(Arrays.asList(4151, 11802), request.profile.favouriteItemIds);
+		assertEquals(Arrays.asList("runes", "potions"), request.profile.categories);
+		assertTrue(request.profile.membersOnly);
+
+		// Free-to-play wins if both are somehow on.
+		settings.f2pOnly = true;
+		request = RequestBuilder.build(settings, Collections.emptyList(), inventory, Collections.emptyMap(), true,
+			Collections.emptyList());
+		assertTrue(!request.profile.membersOnly);
+	}
+
+	@Test
+	public void categoryKeysMatchTheServer()
+	{
+		assertEquals("runes", GpGeniusConfig.Category.RUNES.key());
+		assertEquals("skilling", GpGeniusConfig.Category.SKILLING.key());
+		assertEquals("other", GpGeniusConfig.Category.OTHER.key());
+	}
+
+	@Test
+	public void presetRequestsSendTheIdAndLeaveTheMinimumToTheServer()
+	{
+		RequestBuilder.Settings settings = new RequestBuilder.Settings();
+		settings.preset = "overnight";
+		SuggestionRequest request = RequestBuilder.build(settings, Collections.emptyList(),
+			new HashMap<>(), new HashMap<>(), true, Collections.emptyList());
+		assertEquals("overnight", request.preset);
+		assertNull(request.profileId);
+		assertNull(request.profile.minProfitPerFlip);
+		String json = new com.google.gson.Gson().toJson(request);
+		assertTrue(json.contains("\"preset\":\"overnight\""));
+		assertTrue(!json.contains("min_profit_per_flip"));
+
+		settings.minProfit = 5_000;
+		settings.profileId = "abc";
+		request = RequestBuilder.build(settings, Collections.emptyList(),
+			new HashMap<>(), new HashMap<>(), true, Collections.emptyList());
+		assertEquals(Long.valueOf(5_000), request.profile.minProfitPerFlip);
+		assertEquals("abc", request.profileId);
 	}
 }
