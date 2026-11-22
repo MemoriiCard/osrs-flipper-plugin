@@ -22,6 +22,11 @@ public class SuggestionRequest
 	/** Buys from the plan the player is working through, so the list stays put. */
 	@SerializedName("planned_item_ids")
 	public List<Integer> plannedItemIds = new ArrayList<>();
+	/** A fast-start preset id, or null. The server decides what it means. */
+	public String preset;
+	/** The saved profile in use, or null. Its preset and saved choices are applied on the server. */
+	@SerializedName("profile_id")
+	public String profileId;
 
 	public static class Profile
 	{
@@ -32,8 +37,9 @@ public class SuggestionRequest
 		public boolean f2pOnly;
 		@SerializedName("blocked_item_ids")
 		public List<Integer> blockedItemIds = new ArrayList<>();
+		/** Null (left out) lets a preset's own minimum apply. */
 		@SerializedName("min_profit_per_flip")
-		public long minProfitPerFlip;
+		public Long minProfitPerFlip;
 		@SerializedName("allow_shared_items")
 		public boolean allowSharedItems;
 		/** auto, hold, relist or cut. */

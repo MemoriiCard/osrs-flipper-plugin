@@ -19,7 +19,7 @@ import com.gpgenius.market.PriceCache;
 import com.gpgenius.ge.OfferHotkeys;
 import com.gpgenius.history.FlippingUtilitiesImport;
 import com.gpgenius.notify.CheckInDigest;
-import com.gpgenius.setup.Preset;
+import com.gpgenius.setup.ProfileController;
 import com.gpgenius.suggestion.RequestBuilder;
 import com.gpgenius.suggestion.SuggestionController;
 import com.gpgenius.sync.TradeSync;
@@ -65,6 +65,9 @@ import net.runelite.client.Notifier;
 import net.runelite.client.RuneLite;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.config.Notification;
+import net.runelite.client.config.NotificationSound;
+import net.runelite.client.config.RuneLiteConfig;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
@@ -155,7 +158,13 @@ public class GpGeniusPlugin extends Plugin
 	@Inject
 	private Notifier notifier;
 
+	@Inject
+	private RuneLiteConfig runeLiteConfig;
+
 	private FlipperPanel panel;
+	/** Fast-start presets and saved profiles. Thread-safe. */
+	private ProfileController profiles;
+	private long lastProfileLoadMillis;
 	/** Client thread only. Groups news about the player's offers into one reminder per check-in. */
 	private final CheckInDigest digest = new CheckInDigest();
 	private boolean importInFlight;
@@ -189,6 +198,8 @@ public class GpGeniusPlugin extends Plugin
 		panel.setAdvanced(config.viewMode() == GpGeniusConfig.ViewMode.ADVANCED);
 		panel.setTheme(config.theme());
 		panel.showSetup(!config.setupDone());
+		panel.setCompact(config.compactLayout());
+		profiles = new ProfileController(config, configManager, api, this::updateProfilePanel);
 		auth.start(new TokenFile(gson, dir), config::apiUrl, () -> clientThread.invokeLater(this::onAuthChanged));
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "nav_icon.png");
 		navButton = NavigationButton.builder()
@@ -281,6 +292,16 @@ public class GpGeniusPlugin extends Plugin
 
 		long now = System.currentTimeMillis();
 		boolean connected = auth.getState() == AuthState.SIGNED_IN && consented();
+		if (connected)
+		{
+			// Retry a failed load once a minute rather than every tick.
+			if (!profiles.isLoaded() && now - lastProfileLoadMillis >= 60_000)
+			{
+				lastProfileLoadMillis = now;
+				profiles.load();
+			}
+			profiles.tick(now);
+		}
 		if (connected && trades != null)
 		{
 			if (!helloInFlight && now - lastHelloMillis >= HELLO_MILLIS)
@@ -375,6 +396,11 @@ public class GpGeniusPlugin extends Plugin
 			{
 				SwingUtilities.invokeLater(() -> panel.setTheme(config.theme()));
 			}
+			if ("compactLayout".equals(event.getKey()))
+			{
+				SwingUtilities.invokeLater(() -> panel.setCompact(config.compactLayout()));
+			}
+			profiles.settingChanged(event.getKey(), System.currentTimeMillis());
 			if ("setupDone".equals(event.getKey()) && !config.setupDone())
 			{
 				SwingUtilities.invokeLater(() -> panel.showSetup(true));
@@ -599,7 +625,7 @@ public class GpGeniusPlugin extends Plugin
 			&& CheckInDigest.inQuietHours(LocalTime.now().getHour(), config.quietStart(), config.quietEnd());
 		if (digest.due(now, config.checkIn().minutes * 60_000L, quiet))
 		{
-			notifier.notify(config.checkInNotification(), digest.drain(now));
+			notifier.notify(sounds(config.checkInNotification()), digest.drain(now));
 		}
 	}
 
@@ -713,7 +739,7 @@ public class GpGeniusPlugin extends Plugin
 	/** Client thread. */
 	private void onNewAlert(com.gpgenius.api.DumpAlert alert)
 	{
-		notifier.notify(config.dumpNotification(), String.format("Dump alert: %s is %.0f%% below its usual price.",
+		notifier.notify(sounds(config.dumpNotification()), String.format("Dump alert: %s is %.0f%% below its usual price.",
 			alert.name, alert.dropPercent));
 	}
 
@@ -730,12 +756,46 @@ public class GpGeniusPlugin extends Plugin
 		if (auth.getState() != AuthState.SIGNED_IN)
 		{
 			me = null;
+			profiles.reset();
+			updateProfilePanel();
 		}
+		lastProfileLoadMillis = 0;
 		lastHelloMillis = 0;
 		lastSyncMillis = 0;
 		suggestions.invalidate();
 		updateAccountPanel();
 		updateSuggestionPanel();
+	}
+
+	/** Any thread. Redraws the profile bar and preset buttons. */
+	private void updateProfilePanel()
+	{
+		final java.util.List<com.gpgenius.setup.Preset> presetList = profiles.getPresets();
+		final java.util.List<com.gpgenius.api.Profiles.Profile> list = profiles.getProfiles();
+		final String active = profiles.activeId();
+		final String error = profiles.getError();
+		SwingUtilities.invokeLater(() -> panel.showProfiles(presetList, list, active, error));
+	}
+
+	/**
+	 * The notification as set, or the same without sound when the profile's sounds are off. A
+	 * notification that uses RuneLite's defaults is rebuilt from them with the sound off.
+	 */
+	private Notification sounds(Notification n)
+	{
+		if (config.sounds() || n == null || !n.isEnabled())
+		{
+			return n;
+		}
+		if (n.isOverride() && n.isInitialized())
+		{
+			return n.withSound(NotificationSound.OFF);
+		}
+		RuneLiteConfig rl = runeLiteConfig;
+		return new Notification(true, true, true, rl.enableTrayNotifications(), n.getTrayIconType(),
+			rl.notificationRequestFocus(), NotificationSound.OFF, null, rl.notificationVolume(), rl.notificationTimeout(),
+			rl.enableGameMessageNotification(), rl.flashNotification(), rl.notificationFlashColor(),
+			rl.sendNotificationsWhenFocused());
 	}
 
 	/** Client thread. Links the game account and refreshes plan and announcements. */
@@ -965,15 +1025,42 @@ public class GpGeniusPlugin extends Plugin
 		}
 
 		@Override
-		public void applySetup(Preset.Settings settings)
+		public void choosePreset(String presetId)
 		{
-			usage.add("setup." + settings.preset.name().toLowerCase(java.util.Locale.ROOT));
-			configManager.setConfiguration(GpGeniusConfig.GROUP, "riskLevel", settings.risk);
-			configManager.setConfiguration(GpGeniusConfig.GROUP, "checkIn", settings.checkIn);
-			configManager.setConfiguration(GpGeniusConfig.GROUP, "itemScope", settings.itemScope);
-			configManager.setConfiguration(GpGeniusConfig.GROUP, "maxItemPercent", settings.maxItemPercent);
-			configManager.setConfiguration(GpGeniusConfig.GROUP, "setupPreset", settings.preset.name());
-			configManager.setConfiguration(GpGeniusConfig.GROUP, "setupDone", true);
+			com.gpgenius.setup.Preset preset = com.gpgenius.setup.Preset.byId(profiles.getPresets(), presetId);
+			if (preset == null)
+			{
+				return;
+			}
+			usage.add("setup." + preset.key());
+			profiles.choosePreset(preset);
+		}
+
+		@Override
+		public void switchProfile(String profileId)
+		{
+			usage.add("profile.switch");
+			profiles.switchTo(profileId);
+		}
+
+		@Override
+		public void newProfile(String name)
+		{
+			usage.add("profile.new");
+			profiles.create(name);
+		}
+
+		@Override
+		public void renameProfile(String profileId, String name)
+		{
+			profiles.rename(profileId, name);
+		}
+
+		@Override
+		public void deleteProfile(String profileId)
+		{
+			usage.add("profile.delete");
+			profiles.delete(profileId);
 		}
 
 		@Override
@@ -1021,23 +1108,6 @@ public class GpGeniusPlugin extends Plugin
 			clientThread.invokeLater(() -> chart.setPeriod(period));
 		}
 
-		@Override
-		public void explain()
-		{
-			usage.add("panel.explain");
-			clientThread.invokeLater(() ->
-			{
-				Suggestion current = suggestions.getCurrent();
-				if (current == null || current.itemId == null)
-				{
-					SwingUtilities.invokeLater(() -> panel.showExplanation(null));
-					return;
-				}
-				api.explain(current.itemId,
-					answer -> SwingUtilities.invokeLater(() -> panel.showExplanation(answer == null ? null : answer.answer)),
-					message -> SwingUtilities.invokeLater(() -> panel.showExplanation(message)));
-			});
-		}
 	}
 
 	static OfferStatus toStatus(GrandExchangeOfferState state)

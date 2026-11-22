@@ -1,33 +1,49 @@
 package com.gpgenius.setup;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 
-import com.gpgenius.GpGeniusConfig;
+import com.gpgenius.GpGeniusConfig.CheckIn;
+import com.gpgenius.GpGeniusConfig.RiskLevel;
+import com.gpgenius.api.Profiles;
+import java.util.Arrays;
+import java.util.Collections;
 import org.junit.Test;
 
 public class PresetTest
 {
 	@Test
-	public void recommendsFromTheThreeAnswers()
+	public void fiveBuiltInPresetsMatchTheServerIds()
 	{
-		assertEquals(Preset.F2P_STARTER, Preset.recommend(Preset.Coins.UNDER_1M, Preset.Often.MINUTES, Preset.Appetite.BOLD));
-		assertEquals(Preset.AFK_OVERNIGHT, Preset.recommend(Preset.Coins.TO_100M, Preset.Often.DAILY, Preset.Appetite.SAFE));
-		assertEquals(Preset.AFK_OVERNIGHT, Preset.recommend(Preset.Coins.OVER_100M, Preset.Often.FEW_A_DAY, Preset.Appetite.BALANCED));
-		assertEquals(Preset.BANK_BUILDER, Preset.recommend(Preset.Coins.TO_10M, Preset.Often.HOURLY, Preset.Appetite.SAFE));
-		assertEquals(Preset.ACTIVE_SESSION, Preset.recommend(Preset.Coins.TO_10M, Preset.Often.MINUTES, Preset.Appetite.BALANCED));
+		assertEquals(5, Preset.BUILT_IN.size());
+		assertEquals("overnight", Preset.byId(Preset.BUILT_IN, "overnight").id);
+		assertNull(Preset.byId(Preset.BUILT_IN, "turbo"));
 	}
 
 	@Test
-	public void answersOverrideThePresetsCheckInAndRisk()
+	public void serverListReplacesTheBuiltInOne()
 	{
-		Preset.Settings s = Preset.settings(Preset.F2P_STARTER, Preset.Often.DAILY, Preset.Appetite.BOLD);
-		assertEquals(GpGeniusConfig.ItemScope.F2P, s.itemScope);
-		assertEquals(GpGeniusConfig.CheckIn.HOURS_12, s.checkIn);
-		assertEquals(GpGeniusConfig.RiskLevel.HIGH, s.risk);
+		Profiles.PresetInfo info = new Profiles.PresetInfo();
+		info.id = "afk";
+		info.label = "AFK";
+		info.blurb = "Leave it.";
+		info.risk = "low";
+		info.checkInMinutes = 100;
+		Preset p = Preset.fromServer(Collections.singletonList(info)).get(0);
+		assertEquals("AFK", p.label);
+		assertEquals(RiskLevel.LOW, p.risk);
+		assertEquals(CheckIn.HOURS_2, p.checkIn);
 
-		Preset.Settings plain = Preset.settings(Preset.BANK_BUILDER, null, null);
-		assertEquals(GpGeniusConfig.CheckIn.HOUR_1, plain.checkIn);
-		assertEquals(GpGeniusConfig.RiskLevel.LOW, plain.risk);
-		assertEquals(20, plain.maxItemPercent);
+		assertSame(Preset.BUILT_IN, Preset.fromServer(null));
+		assertSame(Preset.BUILT_IN, Preset.fromServer(Arrays.asList(null, new Profiles.PresetInfo())));
+	}
+
+	@Test
+	public void nearestCheckIn()
+	{
+		assertEquals(CheckIn.MINUTES_5, Preset.nearestCheckIn(1));
+		assertEquals(CheckIn.HOURS_8, Preset.nearestCheckIn(480));
+		assertEquals(CheckIn.DAY_1, Preset.nearestCheckIn(100_000));
 	}
 }

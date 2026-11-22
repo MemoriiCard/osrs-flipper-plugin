@@ -327,6 +327,11 @@ public class SuggestionController
 		s.reservedSlots = config.reservedSlots();
 		s.sellOnly = config.sellOnly();
 		s.lossHandling = config.lossHandling().name().toLowerCase(Locale.ROOT);
+		// Only ids the server knows, so a stale or hand-edited value can't fail the request.
+		String profileId = config.activeProfileId();
+		s.profileId = profileId == null || profileId.trim().isEmpty() ? null : profileId.trim();
+		s.preset = com.gpgenius.setup.Preset.byId(com.gpgenius.setup.Preset.BUILT_IN, config.setupPreset()) == null
+			? null : config.setupPreset();
 		return s;
 	}
 

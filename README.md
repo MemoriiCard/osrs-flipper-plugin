@@ -12,9 +12,12 @@ offer, and tracks your profit.
 - **One next step at a time.** Buy, sell, abort a stale offer, or wait. The plugin highlights the slot,
   button or item to click next, and a hotkey (E by default) fills the suggested price or quantity into
   the GE prompt. You still press every key and click every button.
-- **First-run setup.** Three questions (coins, how often you check, how much risk) pick one of four
-  presets: AFK overnight, Active session, Low-risk bank builder or F2P starter. Switch presets later
-  from the Setup button at the top of the panel. Until your first flip, every step shows its reason.
+- **One-click start.** Pick Active, AFK, Overnight, Low budget or High volume and the first suggestion
+  arrives within seconds. Start again any time from the Presets button at the top of the panel.
+- **Saved profiles.** Each preset you pick is saved as a profile on your account, with its own risk,
+  check-in time, coin cap, per-item cap, filters, theme, compact layout and sound choice. Switch, add,
+  rename or delete profiles from the bar at the top of the panel; edits to those settings save to the
+  active profile. Profiles follow you to any computer you sign in on.
 - **Your limits.** Under *Limits (advanced)*: coins to flip with (the rest of your stack is never
   counted), the most one item may take, an item price range, categories (runes, potions, food, ammo,
   skilling supplies, gear) and favourite items to prefer. Pick any items, free-to-play only, or members
@@ -43,8 +46,8 @@ offer, and tracks your profit.
 - **Profit tracking.** Every GE fill is recorded, buys and sells are paired oldest first, and profit is
   worked out after GE tax. Session and all-time profit and recent flips show in the side panel; full
   history, charts and CSV export are on the website.
-- **Simple or advanced panel.** Simple shows the next step and your profit. Advanced adds the reasoning,
-  Good/Bad ratings, "Why this item?" and every flip's prices.
+- **Simple or advanced panel.** Simple shows the next step and your profit. Advanced adds each step's detail,
+  Good/Bad ratings and every flip's prices. *Compact panel* hides the chart and flip list.
 - **Your alts don't compete.** Your game accounts are steered to different items unless you allow it.
 
 ## Free and premium

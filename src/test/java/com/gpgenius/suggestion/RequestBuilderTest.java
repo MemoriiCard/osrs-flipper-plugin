@@ -1,6 +1,7 @@
 package com.gpgenius.suggestion;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import com.gpgenius.GpGeniusConfig;
@@ -70,7 +71,7 @@ public class RequestBuilderTest
 		assertEquals("high", request.profile.risk);
 		assertEquals(480, request.profile.timeframeMinutes);
 		assertEquals(Collections.singletonList(2), request.profile.blockedItemIds);
-		assertEquals(0, request.profile.minProfitPerFlip);
+		assertEquals(Long.valueOf(0), request.profile.minProfitPerFlip);
 		assertEquals(123L, request.account.coins);
 		assertEquals(1, request.account.offers.size());
 		assertEquals(2, request.account.reservedSlots);
@@ -122,5 +123,27 @@ public class RequestBuilderTest
 		assertEquals("runes", GpGeniusConfig.Category.RUNES.key());
 		assertEquals("skilling", GpGeniusConfig.Category.SKILLING.key());
 		assertEquals("other", GpGeniusConfig.Category.OTHER.key());
+	}
+
+	@Test
+	public void presetRequestsSendTheIdAndLeaveTheMinimumToTheServer()
+	{
+		RequestBuilder.Settings settings = new RequestBuilder.Settings();
+		settings.preset = "overnight";
+		SuggestionRequest request = RequestBuilder.build(settings, Collections.emptyList(),
+			new HashMap<>(), new HashMap<>(), true, Collections.emptyList());
+		assertEquals("overnight", request.preset);
+		assertNull(request.profileId);
+		assertNull(request.profile.minProfitPerFlip);
+		String json = new com.google.gson.Gson().toJson(request);
+		assertTrue(json.contains("\"preset\":\"overnight\""));
+		assertTrue(!json.contains("min_profit_per_flip"));
+
+		settings.minProfit = 5_000;
+		settings.profileId = "abc";
+		request = RequestBuilder.build(settings, Collections.emptyList(),
+			new HashMap<>(), new HashMap<>(), true, Collections.emptyList());
+		assertEquals(Long.valueOf(5_000), request.profile.minProfitPerFlip);
+		assertEquals("abc", request.profileId);
 	}
 }
