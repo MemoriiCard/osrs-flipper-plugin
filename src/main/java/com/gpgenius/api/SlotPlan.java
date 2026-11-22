@@ -39,6 +39,9 @@ public class SlotPlan
 	@SerializedName("next_check_in_at")
 	public String nextCheckInAt;
 	public boolean premium;
+	/** Set while the player's goal is choosing the preset: how often to check in to keep pace. */
+	@SerializedName("goal_check_in_minutes")
+	public Integer goalCheckInMinutes;
 
 	public static class Step
 	{
