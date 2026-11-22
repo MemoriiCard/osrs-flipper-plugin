@@ -11,6 +11,9 @@ Checked against the Plugin Hub's rules as of October 2026. What's done, then wha
 - `icon.png` is 48 x 72.
 - No automation: highlights, colours and the guard only draw or reorder a menu entry. The hotkey writes
   a value into a GE prompt the player opened, on a key the player pressed, and the player confirms it.
+- Highlight styles, labels and the spotlight only draw. The optional panel hotkeys only change plugin
+  settings or ask the server for a fresh suggestion. Sound cues use `Client.playSoundEffect` and are off
+  by default.
 - The welcome-back plan is text in the side panel. The plugin highlights one step at a time, as for a
   single suggestion, and the player sets up, prices and confirms every offer. Nothing is queued.
 - Check-in reminders go through RuneLite's own `Notifier` and only describe what happened.

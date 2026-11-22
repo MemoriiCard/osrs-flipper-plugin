@@ -18,6 +18,8 @@ import com.gpgenius.market.PriceCache;
 import com.gpgenius.ge.OfferHotkeys;
 import com.gpgenius.history.FlippingUtilitiesImport;
 import com.gpgenius.notify.CheckInDigest;
+import com.gpgenius.notify.SoundCue;
+import com.gpgenius.notify.SoundCues;
 import com.gpgenius.setup.ProfileController;
 import com.gpgenius.suggestion.RequestBuilder;
 import com.gpgenius.suggestion.SuggestionController;
@@ -32,6 +34,8 @@ import com.gpgenius.tracking.Transaction;
 import com.gpgenius.ui.FlipperPanel;
 import com.gpgenius.ui.PanelActions;
 import com.gpgenius.ui.HighlightOverlay;
+import com.gpgenius.ui.Theme;
+import com.gpgenius.market.SlotColor;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -52,6 +56,7 @@ import net.runelite.api.GrandExchangeOffer;
 import net.runelite.api.GrandExchangeOfferState;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.Player;
+import net.runelite.api.SoundEffectID;
 import net.runelite.api.WorldType;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
@@ -166,6 +171,8 @@ public class GpGeniusPlugin extends Plugin
 	private long lastProfileLoadMillis;
 	/** Client thread only. Groups news about the player's offers into one reminder per check-in. */
 	private final CheckInDigest digest = new CheckInDigest();
+	/** Client thread only. When the optional sound cues play. */
+	private final SoundCues cues = new SoundCues();
 	private boolean importInFlight;
 	private ChartController chart;
 	private NavigationButton navButton;
@@ -195,7 +202,8 @@ public class GpGeniusPlugin extends Plugin
 		store = new TradeStore(gson, dir);
 		panel = new FlipperPanel(new Actions());
 		panel.setAdvanced(config.viewMode() == GpGeniusConfig.ViewMode.ADVANCED);
-		panel.setTheme(config.theme());
+		panel.setTheme(effectiveTheme());
+		panel.setTextScale(config.textSize().scale);
 		panel.showSetup(!config.setupDone());
 		panel.setCompact(config.compactLayout());
 		profiles = new ProfileController(config, configManager, api, this::updateProfilePanel);
@@ -214,6 +222,7 @@ public class GpGeniusPlugin extends Plugin
 		chart = new ChartController(api, clientThread::invokeLater);
 		chart.setOnChange(this::updateChartPanel);
 		overlayManager.add(highlightOverlay);
+		hotkeys.setShortcuts(new Shortcuts());
 		keyManager.registerKeyListener(hotkeys);
 
 		clientThread.invokeLater(() ->
@@ -235,6 +244,7 @@ public class GpGeniusPlugin extends Plugin
 		clientToolbar.removeNavigation(navButton);
 		overlayManager.remove(highlightOverlay);
 		keyManager.unregisterKeyListener(hotkeys);
+		hotkeys.setShortcuts(null);
 		suggestions.setOnChange(() -> { });
 		clientThread.invokeLater(suggestions::reset);
 		auth.stop();
@@ -270,6 +280,7 @@ public class GpGeniusPlugin extends Plugin
 				accountHash = -1;
 				me = null;
 				suggestions.reset();
+				cues.reset();
 				alerts.reset();
 				prices.clear();
 				guard.setReason(null);
@@ -315,6 +326,7 @@ public class GpGeniusPlugin extends Plugin
 		if (connected && client.getGameState() == GameState.LOGGED_IN)
 		{
 			prices.want(pricedItems());
+			watchOutbid();
 			chart.tick(config.priceChart() ? chartItem() : null, now);
 			if (config.dumpAlerts() && me != null && me.accountPremium() && accountHash != -1)
 			{
@@ -369,6 +381,15 @@ public class GpGeniusPlugin extends Plugin
 			&& client.getTickCount() - loginTick > LOGIN_BURST_TICKS;
 		digest.offerChanged(event.getSlot(), toStatus(event.getOffer().getState()),
 			trusted && config.remindCompleted(), System.currentTimeMillis());
+		GrandExchangeOfferState offerState = event.getOffer().getState();
+		if (offerState == GrandExchangeOfferState.EMPTY)
+		{
+			cues.clearSlot(event.getSlot());
+		}
+		else if (trusted && (offerState == GrandExchangeOfferState.BOUGHT || offerState == GrandExchangeOfferState.SOLD))
+		{
+			playCue(SoundCue.OFFER_DONE);
+		}
 		if (!config.trackTrades())
 		{
 			return;
@@ -391,9 +412,13 @@ public class GpGeniusPlugin extends Plugin
 			{
 				clientThread.invokeLater(this::updateAccountPanel);
 			}
-			if ("theme".equals(event.getKey()))
+			if ("theme".equals(event.getKey()) || "highContrast".equals(event.getKey()))
 			{
-				SwingUtilities.invokeLater(() -> panel.setTheme(config.theme()));
+				SwingUtilities.invokeLater(() -> panel.setTheme(effectiveTheme()));
+			}
+			if ("textSize".equals(event.getKey()))
+			{
+				SwingUtilities.invokeLater(() -> panel.setTextScale(config.textSize().scale));
 			}
 			if ("compactLayout".equals(event.getKey()))
 			{
@@ -540,6 +565,10 @@ public class GpGeniusPlugin extends Plugin
 		final Suggestion current = suggestions.getCurrent();
 		final String error = suggestions.getError();
 		final Suggestion.Plan plan = enabled ? suggestions.getPlan() : null;
+		if (cues.stepChanged(enabled ? SoundCues.stepKey(current) : null))
+		{
+			playCue(SoundCue.NEXT_STEP);
+		}
 		if (enabled && current != null && current.action != null)
 		{
 			digest.suggestion(current.action, current.name, current.headline(), config.remindReprice(),
@@ -550,6 +579,109 @@ public class GpGeniusPlugin extends Plugin
 			panel.showSuggestion(enabled, current, error);
 			panel.showPlan(plan);
 		});
+	}
+
+	private Theme effectiveTheme()
+	{
+		return Theme.effective(config.theme(), config.highContrast());
+	}
+
+	/** Client thread. Plays a sound cue if the player turned it on and it hasn't just played. */
+	private void playCue(SoundCue cue)
+	{
+		if (!client.isClientThread())
+		{
+			clientThread.invokeLater(() -> playCue(cue));
+			return;
+		}
+		if (!cues.play(cue, config.sounds(), config.soundCues(), System.currentTimeMillis()))
+		{
+			return;
+		}
+		int id;
+		switch (cue)
+		{
+			case OFFER_DONE:
+				id = SoundEffectID.GE_COIN_TINKLE;
+				break;
+			case OUTBID:
+				id = SoundEffectID.GE_DECREMENT_PLOP;
+				break;
+			case NEXT_STEP:
+			default:
+				id = SoundEffectID.UI_BOOP;
+				break;
+		}
+		// Game sound effects go up to 127.
+		int volume = Math.max(1, Math.min(127, Math.round(config.soundCueVolume() * 127 / 100f)));
+		client.playSoundEffect(id, volume);
+	}
+
+	/** Client thread. Sounds the outbid cue when an offer that would fill has just been passed by the market. */
+	private void watchOutbid()
+	{
+		if (config.soundCues() == null || !config.soundCues().contains(SoundCue.OUTBID))
+		{
+			return;
+		}
+		GrandExchangeOffer[] offers = client.getGrandExchangeOffers();
+		boolean outbid = false;
+		for (int i = 0; i < offers.length; i++)
+		{
+			GrandExchangeOffer offer = offers[i];
+			if (offer == null)
+			{
+				cues.clearSlot(i);
+				continue;
+			}
+			GrandExchangeOfferState state = offer.getState();
+			boolean buying = state == GrandExchangeOfferState.BUYING;
+			SlotColor color = buying || state == GrandExchangeOfferState.SELLING
+				? SlotColor.of(buying, offer.getPrice(), prices.get(offer.getItemId()))
+				: SlotColor.NONE;
+			outbid |= cues.slotColor(i, color);
+		}
+		if (outbid)
+		{
+			playCue(SoundCue.OUTBID);
+		}
+	}
+
+	/** The optional panel hotkeys. Client thread. */
+	private class Shortcuts implements OfferHotkeys.Shortcuts
+	{
+		@Override
+		public void toggleHighlights()
+		{
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "highlightOffers", !config.highlightOffers());
+		}
+
+		@Override
+		public void refresh()
+		{
+			suggestions.invalidate();
+		}
+
+		@Override
+		public void nextProfile()
+		{
+			profiles.switchToNext();
+		}
+
+		@Override
+		public void toggleView()
+		{
+			GpGeniusConfig.ViewMode next = config.viewMode() == GpGeniusConfig.ViewMode.ADVANCED
+				? GpGeniusConfig.ViewMode.SIMPLE
+				: GpGeniusConfig.ViewMode.ADVANCED;
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "viewMode", next);
+		}
+
+		@Override
+		public void toggleCompact()
+		{
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "compactLayout", !config.compactLayout());
+		}
 	}
 
 	/** Items whose market price the slot colours and guard need: open offers, the offer being set up, the suggestion. */
