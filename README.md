@@ -57,6 +57,17 @@ offer, and tracks your profit.
   advanced mode.
 - **Mis-click guard.** If a price looks like a typo (far from the market or the suggestion), Confirm
   moves off left-click and a warning explains why. It stays on the right-click menu.
+- **Goal tracker.** Set a target such as "reach a 100M stack by Friday" or "make 50M profit by
+  Sunday", for one character or all of them. The panel shows progress, time left, whether you're ahead
+  or behind, and about how much an hour is still needed. With *Adapt* on, the server picks the preset and
+  check-in rhythm that suit your pace while the goal runs, and check-in reminders follow it. You still
+  set up and confirm every offer yourself.
+- **Profit at a glance.** Session, 1 hour, 12 hours, day, week, month and all time, for this
+  character, any other character or all of them combined. *Reset session* starts a new session for the
+  characters shown and leaves every other total alone. The same table is on the website dashboard.
+- **Suggested minimum cash stack.** A round figure such as 200M: the smallest stack we suggest
+  flipping with to hold on to the gains you've reached. It's worked out on the server and only appears
+  once your stack is known.
 - **Profit tracking.** Every GE fill is recorded, buys and sells are paired oldest first, and profit is
   worked out after GE tax. Session and all-time profit and recent flips show in the side panel; full
   history, charts and CSV export are on the website.

@@ -27,6 +27,9 @@ public class SuggestionRequest
 	/** The saved profile in use, or null. Its preset and saved choices are applied on the server. */
 	@SerializedName("profile_id")
 	public String profileId;
+	/** Let the player's goal pick the preset and check-in rhythm while it runs (when the goal allows it). */
+	@SerializedName("follow_goal")
+	public boolean followGoal = true;
 
 	public static class Profile
 	{

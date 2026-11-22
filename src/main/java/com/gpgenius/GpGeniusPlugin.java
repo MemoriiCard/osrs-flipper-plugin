@@ -3,6 +3,8 @@ package com.gpgenius;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
 import com.gpgenius.api.FlipperApiClient;
+import com.gpgenius.api.GoalRequest;
+import com.gpgenius.api.Progress;
 import com.gpgenius.api.Me;
 import com.gpgenius.api.SlotPlan;
 import com.gpgenius.api.Suggestion;
@@ -98,6 +100,8 @@ public class GpGeniusPlugin extends Plugin
 	public static final String VERSION = "0.5.0";
 	private static final long HELLO_MILLIS = 5 * 60_000;
 	private static final long SYNC_MILLIS = 30_000;
+	/** Profit at a glance and the goal's pace refresh this often, and right after each trade upload. */
+	private static final long PROGRESS_MILLIS = 2 * 60_000;
 	private static final long USAGE_MILLIS = 10 * 60_000;
 
 	@Inject
@@ -194,6 +198,10 @@ public class GpGeniusPlugin extends Plugin
 	private long lastSyncMillis;
 	private boolean syncInFlight;
 	private long lastUsageMillis;
+	/** Client thread only. From the server while signed in. */
+	private Progress progress;
+	private long lastProgressMillis;
+	private boolean progressInFlight;
 
 	@Override
 	protected void startUp()
@@ -322,6 +330,10 @@ public class GpGeniusPlugin extends Plugin
 			if (config.syncTrades() && !syncInFlight && now - lastSyncMillis >= SYNC_MILLIS)
 			{
 				syncTrades();
+			}
+			if (!progressInFlight && now - lastProgressMillis >= PROGRESS_MILLIS)
+			{
+				refreshProgress(null);
 			}
 		}
 		if (connected && client.getGameState() == GameState.LOGGED_IN)
@@ -489,6 +501,7 @@ public class GpGeniusPlugin extends Plugin
 		accountHash = hash;
 		me = null;
 		lastHelloMillis = 0;
+		lastProgressMillis = 0;
 		// The player is here now; the first reminder comes a check-in window later at the soonest.
 		digest.resetSlots();
 		digest.seen(System.currentTimeMillis());
@@ -755,10 +768,69 @@ public class GpGeniusPlugin extends Plugin
 		}
 		boolean quiet = config.quietHours()
 			&& CheckInDigest.inQuietHours(LocalTime.now().getHour(), config.quietStart(), config.quietEnd());
-		if (digest.due(now, config.checkIn().minutes * 60_000L, quiet))
+		if (digest.due(now, checkInMinutes() * 60_000L, quiet))
 		{
 			notifier.notify(sounds(config.checkInNotification()), digest.drain(now));
 		}
+	}
+
+	/**
+	 * How often to remind the player to check in: the goal's rhythm while a goal that adapts is running
+	 * for this character, otherwise the player's own setting.
+	 */
+	private int checkInMinutes()
+	{
+		Progress.Goal goal = progress == null ? null : progress.goal;
+		if (goal != null && goal.adapt && goal.isLive() && goal.checkInMinutes != null && goal.checkInMinutes > 0
+			&& (goal.accountId == null || goal.accountId.equals(progress.currentId)))
+		{
+			return goal.checkInMinutes;
+		}
+		return config.checkIn().minutes;
+	}
+
+	/** Client thread. Fetches profit at a glance, the goal and the suggested stack. */
+	private void refreshProgress(String errorPrefix)
+	{
+		if (auth.getState() != AuthState.SIGNED_IN || !consented())
+		{
+			return;
+		}
+		progressInFlight = true;
+		lastProgressMillis = System.currentTimeMillis();
+		final long hash = accountHash;
+		api.progress(hash == -1 ? null : Long.toString(hash),
+			result -> clientThread.invokeLater(() ->
+			{
+				progressInFlight = false;
+				if (hash == accountHash)
+				{
+					showProgress(result, null);
+				}
+			}),
+			message -> clientThread.invokeLater(() ->
+			{
+				progressInFlight = false;
+				log.debug("Progress refresh failed: {}", message);
+				if (errorPrefix != null)
+				{
+					showProgress(progress, errorPrefix + message);
+				}
+			}));
+	}
+
+	/** Client thread. */
+	private void showProgress(Progress result, String error)
+	{
+		progress = result;
+		SwingUtilities.invokeLater(() -> panel.showProgress(result, error));
+	}
+
+	/** Client thread. Replies from session resets and goal changes carry the new progress. */
+	private void onProgressReply(Progress result)
+	{
+		lastProgressMillis = System.currentTimeMillis();
+		showProgress(result, null);
 	}
 
 	/** Carries settings from older versions over to their replacements. */
@@ -894,6 +966,11 @@ public class GpGeniusPlugin extends Plugin
 		lastProfileLoadMillis = 0;
 		lastHelloMillis = 0;
 		lastSyncMillis = 0;
+		lastProgressMillis = 0;
+		if (auth.getState() != AuthState.SIGNED_IN)
+		{
+			showProgress(null, null);
+		}
 		suggestions.invalidate();
 		updateAccountPanel();
 		updateSuggestionPanel();
@@ -975,6 +1052,8 @@ public class GpGeniusPlugin extends Plugin
 			{
 				syncInFlight = false;
 				TradeSync.markUploaded(batch);
+				// New flips show up in profit at a glance and the goal right away.
+				lastProgressMillis = 0;
 				if (current == trades)
 				{
 					saveAsync();
@@ -1200,6 +1279,66 @@ public class GpGeniusPlugin extends Plugin
 		{
 			usage.add("setup.skip");
 			configManager.setConfiguration(GpGeniusConfig.GROUP, "setupDone", true);
+		}
+
+		@Override
+		public void resetSession(String scope)
+		{
+			usage.add("panel.reset_session");
+			clientThread.invokeLater(() ->
+			{
+				boolean all = Progress.ALL.equals(scope);
+				boolean mine = all || Progress.CURRENT.equals(scope)
+					|| (progress != null && scope != null && scope.equals(progress.currentId));
+				if (mine)
+				{
+					// This computer's own session total, shown while signed out, starts again too.
+					sessionStartMillis = System.currentTimeMillis();
+					updatePanel();
+				}
+				if (auth.getState() != AuthState.SIGNED_IN || !consented())
+				{
+					return;
+				}
+				String hash = accountHash == -1 ? null : Long.toString(accountHash);
+				String id = all || Progress.CURRENT.equals(scope) ? null : scope;
+				api.resetSession(Progress.CURRENT.equals(scope) ? hash : null, id, all,
+					result -> clientThread.invokeLater(() -> onProgressReply(result)),
+					message -> clientThread.invokeLater(() -> showProgress(progress, "Couldn't reset: " + message)));
+			});
+		}
+
+		@Override
+		public void setGoal(String kind, long target, String deadline, boolean allCharacters, boolean adapt)
+		{
+			usage.add("panel.set_goal");
+			clientThread.invokeLater(() ->
+			{
+				if (auth.getState() != AuthState.SIGNED_IN || !consented())
+				{
+					showProgress(progress, "Sign in to set a goal.");
+					return;
+				}
+				GoalRequest body = new GoalRequest();
+				body.kind = kind;
+				body.target = target;
+				body.deadline = deadline;
+				body.scope = allCharacters ? "all" : "character";
+				body.accountHash = accountHash == -1 ? null : Long.toString(accountHash);
+				body.adapt = adapt;
+				api.setGoal(body,
+					result -> clientThread.invokeLater(() -> onProgressReply(result)),
+					message -> clientThread.invokeLater(() -> showProgress(progress, message)));
+			});
+		}
+
+		@Override
+		public void clearGoal()
+		{
+			usage.add("panel.clear_goal");
+			clientThread.invokeLater(() -> api.deleteGoal(
+				() -> clientThread.invokeLater(() -> refreshProgress(null)),
+				message -> clientThread.invokeLater(() -> showProgress(progress, message))));
 		}
 
 		@Override
