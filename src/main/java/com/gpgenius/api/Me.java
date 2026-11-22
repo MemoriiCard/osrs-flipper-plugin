@@ -18,6 +18,11 @@ public class Me
 	public List<Announcement> announcements = new ArrayList<>();
 	@SerializedName("current_account")
 	public GameAccount currentAccount;
+	/** Why the free trial hasn't started yet: needs_discord or discord_too_new. Null otherwise. */
+	@SerializedName("trial_waiting")
+	public String trialWaiting;
+	@SerializedName("trial_discord_min_age_days")
+	public int trialDiscordMinAgeDays;
 
 	public static class GameAccount
 	{
@@ -60,6 +65,22 @@ public class Me
 	public boolean hasFeature(String key)
 	{
 		return features != null && features.contains(key);
+	}
+
+	/** What the free plan line says: what free covers, plus what the waiting trial needs, if anything. */
+	public String freePlanText()
+	{
+		String text = "Suggestions from popular free-to-play items. Premium unlocks every item, members items on members worlds, and dump alerts.";
+		if ("needs_discord".equals(trialWaiting))
+		{
+			return text + " Link your Discord account on the website to start your free premium trial.";
+		}
+		if ("discord_too_new".equals(trialWaiting))
+		{
+			return text + " Your free trial needs a Discord account at least " + Math.max(1, trialDiscordMinAgeDays)
+				+ " days old. It starts once yours is.";
+		}
+		return text;
 	}
 
 	/** Whether the game account the player is logged in to gets premium suggestions. */
