@@ -53,6 +53,9 @@ public class SuggestionController
 	private final SkipList skips = new SkipList();
 	private final PlanState plan = new PlanState();
 	private final SlotPlanState slotPlan = new SlotPlanState();
+	private final OvernightState overnight = new OvernightState();
+	/** Whether the last tick had overnight mode on, to notice when it switches itself off. */
+	private boolean wasOvernight;
 
 	@Getter
 	private Suggestion current;
@@ -96,6 +99,46 @@ public class SuggestionController
 		dirty = true;
 		skips.clear();
 		plan.reset();
+		slotPlan.reset();
+		overnight.stop();
+		wasOvernight = false;
+		onChange.run();
+	}
+
+	/** The player is about to log off: plan slower, safer picks for every free slot. */
+	public void startOvernight(int hours)
+	{
+		overnight.start(hours, System.currentTimeMillis());
+		switchMode();
+	}
+
+	public void stopOvernight()
+	{
+		overnight.stop();
+		switchMode();
+	}
+
+	public boolean isOvernight()
+	{
+		return overnight.active(System.currentTimeMillis());
+	}
+
+	public int getOvernightHours()
+	{
+		return overnight.getHours();
+	}
+
+	/** Drop advice made for the other mode and ask again straight away. */
+	private void switchMode()
+	{
+		generation++;
+		wasOvernight = overnight.active(System.currentTimeMillis());
+		current = null;
+		error = null;
+		inFlight = false;
+		pinnedUntil = 0;
+		dirty = true;
+		lastRequestMillis = 0;
 		slotPlan.reset();
 		onChange.run();
 	}
@@ -180,6 +223,13 @@ public class SuggestionController
 			return;
 		}
 		long now = System.currentTimeMillis();
+		boolean night = overnight.active(now);
+		if (night != wasOvernight)
+		{
+			// Overnight mode ran out while the player was still here: back to normal advice.
+			switchMode();
+			return;
+		}
 		if (now < pinnedUntil && current != null && !hasOffer(current.itemId))
 		{
 			return;
@@ -199,6 +249,14 @@ public class SuggestionController
 		request.profile.allowSharedItems = config.allowSharedItems();
 		request.plan = plan.wanted();
 		request.plannedItemIds = plan.plannedItemIds();
+		if (night)
+		{
+			request.mode = "overnight";
+			request.awayHours = overnight.getHours();
+			// The overnight plan covers every slot; the welcome-back plan would only compete with it.
+			request.plan = false;
+			request.plannedItemIds = new java.util.ArrayList<>();
+		}
 		dirty = false;
 		inFlight = true;
 		lastRequestMillis = now;
@@ -206,7 +264,7 @@ public class SuggestionController
 		api.suggest(request,
 			suggestion -> clientThread.invokeLater(() -> finish(requestGeneration, suggestion, null)),
 			message -> clientThread.invokeLater(() -> finish(requestGeneration, null, message)));
-		if (config.slotManager() && slotPlan.due(now))
+		if ((config.slotManager() || night) && slotPlan.due(now))
 		{
 			slotPlan.sent(now);
 			api.slots(request,

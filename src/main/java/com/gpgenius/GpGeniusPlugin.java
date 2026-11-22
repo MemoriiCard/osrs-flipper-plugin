@@ -193,6 +193,8 @@ public class GpGeniusPlugin extends Plugin
 	private boolean helloInFlight;
 	private long lastSyncMillis;
 	private boolean syncInFlight;
+	/** The pop-out trade dashboard, made the first time it's opened. Swing thread only. */
+	private com.gpgenius.ui.TradeDashboard tradeDashboard;
 	private long lastUsageMillis;
 
 	@Override
@@ -243,6 +245,14 @@ public class GpGeniusPlugin extends Plugin
 	protected void shutDown()
 	{
 		clientToolbar.removeNavigation(navButton);
+		SwingUtilities.invokeLater(() ->
+		{
+			if (tradeDashboard != null)
+			{
+				tradeDashboard.dispose();
+				tradeDashboard = null;
+			}
+		});
 		overlayManager.remove(highlightOverlay);
 		keyManager.unregisterKeyListener(hotkeys);
 		hotkeys.setShortcuts(null);
@@ -415,7 +425,14 @@ public class GpGeniusPlugin extends Plugin
 			}
 			if ("theme".equals(event.getKey()) || "highContrast".equals(event.getKey()))
 			{
-				SwingUtilities.invokeLater(() -> panel.setTheme(effectiveTheme()));
+				SwingUtilities.invokeLater(() ->
+				{
+					panel.setTheme(effectiveTheme());
+					if (tradeDashboard != null)
+					{
+						tradeDashboard.setTheme(effectiveTheme());
+					}
+				});
 			}
 			if ("textSize".equals(event.getKey()))
 			{
@@ -566,7 +583,11 @@ public class GpGeniusPlugin extends Plugin
 		final Suggestion current = suggestions.getCurrent();
 		final String error = suggestions.getError();
 		final Suggestion.Plan plan = enabled ? suggestions.getPlan() : null;
-		final SlotPlan slotPlan = enabled && config.slotManager() ? suggestions.getSlotPlan() : null;
+		final boolean overnight = enabled && suggestions.isOvernight();
+		final int overnightHours = suggestions.getOvernightHours();
+		final boolean overnightAvailable = enabled && auth.getState() == AuthState.SIGNED_IN && consented()
+			&& client.getGameState() == GameState.LOGGED_IN;
+		final SlotPlan slotPlan = enabled && (config.slotManager() || overnight) ? suggestions.getSlotPlan() : null;
 		if (cues.stepChanged(enabled ? SoundCues.stepKey(current) : null))
 		{
 			playCue(SoundCue.NEXT_STEP);
@@ -581,7 +602,92 @@ public class GpGeniusPlugin extends Plugin
 			panel.showSuggestion(enabled, current, error);
 			panel.showPlan(plan);
 			panel.showSlots(slotPlan);
+			panel.showOvernight(overnightAvailable, overnight, overnightHours);
 		});
+	}
+
+	/** Swing thread. Opens (or brings forward) the trade dashboard and loads the latest trades. */
+	private void showTradeDashboard()
+	{
+		if (auth.getState() != AuthState.SIGNED_IN || !consented())
+		{
+			panel.showExportMessage("Sign in first to see your trades.");
+			return;
+		}
+		if (tradeDashboard == null)
+		{
+			tradeDashboard = new com.gpgenius.ui.TradeDashboard(new com.gpgenius.ui.TradeDashboard.Source()
+			{
+				@Override
+				public void load(int days, Long beforeId, java.util.function.Consumer<com.gpgenius.api.TradeHistory> onSuccess,
+					java.util.function.Consumer<String> onError)
+				{
+					api.history(days, beforeId, onSuccess, onError);
+				}
+
+				@Override
+				public void export(int days)
+				{
+					exportTradesCsv(days);
+				}
+			});
+			tradeDashboard.setTheme(effectiveTheme());
+		}
+		tradeDashboard.open();
+	}
+
+	/** Downloads the player's trades as CSV and asks where to save it. Any thread. */
+	private void exportTradesCsv(int days)
+	{
+		if (auth.getState() != AuthState.SIGNED_IN || !consented())
+		{
+			SwingUtilities.invokeLater(() -> panel.showExportMessage("Sign in first to export your trades."));
+			return;
+		}
+		api.exportTrades(days,
+			csv -> SwingUtilities.invokeLater(() -> saveCsv(csv)),
+			message -> SwingUtilities.invokeLater(() -> exportDone(message)));
+	}
+
+	/** Swing thread. */
+	private void saveCsv(String csv)
+	{
+		java.awt.Component parent = tradeDashboard != null && tradeDashboard.isVisible() ? tradeDashboard : panel;
+		File file = com.gpgenius.ui.TradeDashboardFiles.chooseSaveFile(parent,
+			new File(RuneLite.RUNELITE_DIR, "gp-genius"), java.time.LocalDate.now());
+		if (file == null)
+		{
+			exportDone(null);
+			return;
+		}
+		executor.execute(() ->
+		{
+			String message;
+			try
+			{
+				java.nio.file.Files.write(file.toPath(), csv == null ? new byte[0]
+					: csv.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+				int rows = com.gpgenius.ui.TradeDashboardFiles.rows(csv);
+				message = "Saved " + rows + (rows == 1 ? " trade" : " trades") + " to " + file.getName() + ".";
+			}
+			catch (IOException e)
+			{
+				log.debug("Couldn't save the export", e);
+				message = "Couldn't save the file: " + e.getMessage();
+			}
+			final String done = message;
+			SwingUtilities.invokeLater(() -> exportDone(done));
+		});
+	}
+
+	/** Swing thread. Shows how an export went in the panel and, if open, the dashboard. */
+	private void exportDone(String message)
+	{
+		panel.showExportMessage(message);
+		if (tradeDashboard != null && message != null)
+		{
+			tradeDashboard.showStatus(message);
+		}
 	}
 
 	private Theme effectiveTheme()
@@ -1200,6 +1306,33 @@ public class GpGeniusPlugin extends Plugin
 		{
 			usage.add("setup.skip");
 			configManager.setConfiguration(GpGeniusConfig.GROUP, "setupDone", true);
+		}
+
+		@Override
+		public void startOvernight(int hours)
+		{
+			usage.add("panel.overnight");
+			clientThread.invokeLater(() -> suggestions.startOvernight(hours));
+		}
+
+		@Override
+		public void stopOvernight()
+		{
+			clientThread.invokeLater(suggestions::stopOvernight);
+		}
+
+		@Override
+		public void openTradeDashboard()
+		{
+			usage.add("panel.trade_dashboard");
+			SwingUtilities.invokeLater(GpGeniusPlugin.this::showTradeDashboard);
+		}
+
+		@Override
+		public void exportTrades()
+		{
+			usage.add("panel.export");
+			exportTradesCsv(com.gpgenius.ui.TradeDashboardFiles.ALL_DAYS);
 		}
 
 		@Override

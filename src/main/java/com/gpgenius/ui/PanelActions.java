@@ -62,4 +62,15 @@ public interface PanelActions
 
 	/** Hide the welcome-back plan and go back to one step at a time. */
 	void dismissPlan();
+
+	/** The player is about to log off for about this many hours: switch to overnight picks. */
+	void startOvernight(int hours);
+
+	void stopOvernight();
+
+	/** Open the pop-out trade dashboard. */
+	void openTradeDashboard();
+
+	/** Save the player's trades as a CSV file. */
+	void exportTrades();
 }

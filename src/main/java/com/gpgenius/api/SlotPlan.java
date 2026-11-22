@@ -39,6 +39,13 @@ public class SlotPlan
 	@SerializedName("next_check_in_at")
 	public String nextCheckInAt;
 	public boolean premium;
+	/** "overnight" for a plan made for logging off, "normal" otherwise. Older servers leave it out. */
+	public String mode;
+
+	public boolean isOvernight()
+	{
+		return "overnight".equals(mode);
+	}
 
 	public static class Step
 	{
