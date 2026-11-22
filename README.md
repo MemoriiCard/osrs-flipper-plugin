@@ -84,7 +84,7 @@ offer, and tracks your profit.
 
 ## Free and premium
 
-Free accounts get suggestions from a pool of popular items, plus tracking, highlights and hotkeys.
+Free accounts get suggestions from the 75 most traded free-to-play items worth up to 5M, plus tracking, highlights and hotkeys. Premium unlocks every item and dump alerts; members items are only suggested on members worlds. New logins get a 4-hour premium trial on one game account once a Discord account at least 30 days old is linked on the website.
 Premium unlocks every item and dump alerts. Plans are managed on the website.
 
 ## Privacy
