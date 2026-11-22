@@ -1,5 +1,6 @@
 package com.gpgenius.ui;
 
+import com.gpgenius.api.Announcements;
 import com.gpgenius.api.DeviceStart;
 import com.gpgenius.api.DumpAlert;
 import com.gpgenius.api.Me;
@@ -14,8 +15,10 @@ import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JComponent;
@@ -57,6 +60,8 @@ public class FlipperPanel extends PluginPanel
 	private final ThemedButton signOutButton = button("Sign out", null, ThemedButton.Style.GHOST);
 	private final ThemedButton agreeButton = button("Agree", "Agree to the data notice and carry on", ThemedButton.Style.PRIMARY);
 	private final JPanel announcements = column();
+	/** Announcements closed this session, hidden even before the server hears about it. */
+	private final Set<String> closedAnnouncements = new HashSet<>();
 
 	private final RoundedPanel suggestionCard = card();
 	private final Pill actionPill = new Pill();
@@ -442,23 +447,57 @@ public class FlipperPanel extends PluginPanel
 		accountError.setVisible(error != null);
 
 		announcements.removeAll();
-		if (state == AuthState.SIGNED_IN && me != null && me.announcements != null)
+		if (state == AuthState.SIGNED_IN && me != null)
 		{
-			for (Me.Announcement a : me.announcements)
+			for (Me.Announcement a : Announcements.visible(me.announcements, closedAnnouncements))
 			{
-				RoundedPanel note = card();
-				boolean warning = "warning".equals(a.level);
-				note.setColors(theme.surface, theme.border);
-				note.setStripe(warning ? theme.warning : theme.accent);
-				JLabel label = new JLabel(html(a.message));
-				label.setForeground(warning ? theme.warning : theme.text);
-				note.add(label, BorderLayout.CENTER);
-				stack(announcements, note, 6);
+				stack(announcements, announcementCard(a), 6);
 			}
 		}
 		announcements.setVisible(announcements.getComponentCount() > 0);
 		announcements.setBorder(new EmptyBorder(0, 0, announcements.isVisible() ? 8 : 0, 0));
 		announcements.revalidate();
+	}
+
+	private RoundedPanel announcementCard(Me.Announcement a)
+	{
+		RoundedPanel note = card();
+		Color stripe = a.isCritical() ? theme.loss : a.isWarning() ? theme.warning : theme.accent;
+		note.setColors(theme.surface, theme.border);
+		note.setStripe(stripe);
+		String text = a.title == null || a.title.isEmpty() ? a.message : a.title + ": " + a.message;
+		JLabel label = new JLabel(html(text));
+		label.setForeground(a.isCritical() ? theme.loss : a.isWarning() ? theme.warning : theme.text);
+		note.add(label, BorderLayout.CENTER);
+		JPanel buttons = row();
+		if (a.linkUrl != null && !a.linkUrl.isEmpty())
+		{
+			ThemedButton more = button("Read more", "Opens in your browser", ThemedButton.Style.GHOST);
+			more.setTheme(theme);
+			more.addActionListener(e -> actions.openAnnouncementLink(a.linkUrl));
+			buttons.add(more);
+		}
+		if (a.canDismiss())
+		{
+			ThemedButton close = button("Close", "Hide this message here and on the website", ThemedButton.Style.GHOST);
+			close.setTheme(theme);
+			close.addActionListener(e ->
+			{
+				// Hide it straight away; the server remembers it for next time.
+				closedAnnouncements.add(a.id);
+				announcements.remove(note);
+				announcements.setVisible(announcements.getComponentCount() > 0);
+				announcements.revalidate();
+				announcements.repaint();
+				actions.dismissAnnouncement(a.id);
+			});
+			buttons.add(close);
+		}
+		if (buttons.getComponentCount() > 0)
+		{
+			note.add(buttons, BorderLayout.SOUTH);
+		}
+		return note;
 	}
 
 	/**

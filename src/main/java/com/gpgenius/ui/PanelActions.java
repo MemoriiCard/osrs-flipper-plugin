@@ -32,6 +32,12 @@ public interface PanelActions
 
 	void dismissAlert(String alertId);
 
+	/** Closes an announcement (here and, for signed-in players, everywhere else). */
+	void dismissAnnouncement(String announcementId);
+
+	/** Opens an announcement's "Read more" link, if it's on the GP Genius server. */
+	void openAnnouncementLink(String url);
+
 	/** day, week or month */
 	void chartPeriod(String period);
 }

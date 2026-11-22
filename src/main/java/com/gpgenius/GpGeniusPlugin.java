@@ -821,6 +821,23 @@ public class GpGeniusPlugin extends Plugin
 		}
 
 		@Override
+		public void dismissAnnouncement(String announcementId)
+		{
+			usage.add("panel.close_announcement");
+			api.dismissAnnouncement(announcementId);
+		}
+
+		@Override
+		public void openAnnouncementLink(String url)
+		{
+			if (com.gpgenius.api.Announcements.opensOn(url, auth.server()))
+			{
+				usage.add("panel.announcement_link");
+				browse(url);
+			}
+		}
+
+		@Override
 		public void chartPeriod(String period)
 		{
 			usage.add("panel.chart_" + period);
