@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.inject.Provides;
 import com.gpgenius.api.FlipperApiClient;
 import com.gpgenius.api.Me;
+import com.gpgenius.api.SlotPlan;
 import com.gpgenius.api.Suggestion;
 import com.gpgenius.auth.AuthSession;
 import com.gpgenius.auth.AuthState;
@@ -514,6 +515,7 @@ public class GpGeniusPlugin extends Plugin
 		final Suggestion current = suggestions.getCurrent();
 		final String error = suggestions.getError();
 		final Suggestion.Plan plan = enabled ? suggestions.getPlan() : null;
+		final SlotPlan slotPlan = enabled && config.slotManager() ? suggestions.getSlotPlan() : null;
 		if (enabled && current != null && current.action != null)
 		{
 			digest.suggestion(current.action, current.name, current.headline(), config.remindReprice(),
@@ -523,6 +525,7 @@ public class GpGeniusPlugin extends Plugin
 		{
 			panel.showSuggestion(enabled, current, error);
 			panel.showPlan(plan);
+			panel.showSlots(slotPlan);
 		});
 	}
 

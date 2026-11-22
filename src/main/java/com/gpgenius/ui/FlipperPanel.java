@@ -4,6 +4,7 @@ import com.gpgenius.api.DeviceStart;
 import com.gpgenius.api.DumpAlert;
 import com.gpgenius.api.Me;
 import com.gpgenius.api.PriceHistory;
+import com.gpgenius.api.SlotPlan;
 import com.gpgenius.api.Suggestion;
 import com.gpgenius.auth.AuthState;
 import com.gpgenius.auth.DataConsent;
@@ -109,6 +110,13 @@ public class FlipperPanel extends PluginPanel
 	private final JLabel planNote = new JLabel();
 	private final ThemedButton hidePlanButton = button("Hide", "Go back to one step at a time", ThemedButton.Style.GHOST);
 	private Suggestion.Plan plan;
+	private final RoundedPanel slotsCard = card();
+	private final JLabel slotsTitle = new JLabel("GE slots");
+	private final JLabel slotsSummary = new JLabel();
+	private final JPanel slotsTodo = column();
+	private final JPanel slotsList = column();
+	private final JLabel slotsNote = new JLabel();
+	private SlotPlan slotPlan;
 
 	private final JPanel importRow = column();
 	private final ThemedButton importButton = button("Import history", "Copy past flips from the Flipping Utilities plugin on this computer. Imported flips count in your profit, never in how accurate suggestions are.", ThemedButton.Style.GHOST);
@@ -157,6 +165,7 @@ public class FlipperPanel extends PluginPanel
 		content.add(Box.createVerticalStrut(8));
 		content.add(announcements);
 		content.add(planCard(actions));
+		content.add(slotsCard());
 		content.add(suggestionCard(actions));
 		content.add(Box.createVerticalStrut(8));
 		content.add(alertList);
@@ -185,6 +194,7 @@ public class FlipperPanel extends PluginPanel
 		showChart(null, "day", null);
 		showSetup(false);
 		showPlan(null);
+		showSlots(null);
 		showImportMessage(null);
 		setTheme(theme);
 	}
@@ -202,6 +212,7 @@ public class FlipperPanel extends PluginPanel
 		showAlerts(alerts);
 		update(loggedIn, sessionProfit, allTimeProfit, flips);
 		showPlan(plan);
+		showSlots(slotPlan);
 		recolorSuggestion();
 		revalidate();
 		repaint();
@@ -457,6 +468,90 @@ public class FlipperPanel extends PluginPanel
 		planCard.setVisible(show);
 		planCard.setBorder(new EmptyBorder(10, 12, 10, 10));
 		planSteps.revalidate();
+		revalidate();
+		repaint();
+	}
+
+	private JComponent slotsCard()
+	{
+		JPanel text = column();
+		slotsTitle.setFont(FontManager.getRunescapeBoldFont());
+		slotsSummary.setFont(FontManager.getRunescapeSmallFont());
+		slotsNote.setFont(FontManager.getRunescapeSmallFont());
+		stack(text, slotsTitle, 2);
+		stack(text, slotsSummary, 2);
+		stack(text, slotsTodo, 6);
+		stack(text, slotsList, 6);
+		stack(text, slotsNote, 6);
+		slotsCard.add(text, BorderLayout.CENTER);
+		painters.add(() ->
+		{
+			slotsCard.setColors(theme.surface, theme.border);
+			slotsCard.setStripe(theme.accent);
+			slotsTitle.setForeground(theme.text);
+			slotsSummary.setForeground(theme.profit);
+			slotsNote.setForeground(theme.muted);
+		});
+		return slotsCard;
+	}
+
+	/** The slot manager: a to-do list for this check-in and what each slot holds after it. Null hides it. */
+	public void showSlots(SlotPlan plan)
+	{
+		this.slotPlan = plan;
+		slotsTodo.removeAll();
+		slotsList.removeAll();
+		boolean show = plan != null && plan.slots != null && !plan.slots.isEmpty();
+		if (show)
+		{
+			int todo = plan.steps == null ? 0 : plan.steps.size();
+			slotsTitle.setText(html(todo == 0 ? "GE slots: all set" : "GE slots: " + todo + (todo == 1 ? " step" : " steps")));
+			String summary = "";
+			if (plan.coinsUsed > 0)
+			{
+				summary = "Places " + QuantityFormatter.quantityToStackSize(plan.coinsUsed) + " gp";
+				if (plan.expectedProfit > 0)
+				{
+					summary += ", about +" + QuantityFormatter.quantityToStackSize(plan.expectedProfit) + " gp";
+				}
+			}
+			slotsSummary.setText(summary);
+			slotsSummary.setVisible(!summary.isEmpty());
+			if (plan.steps != null)
+			{
+				for (SlotPlan.Step step : plan.steps)
+				{
+					JLabel line = new JLabel(html((step.order == null ? "" : step.order + ". ") + step.todo()));
+					line.setFont(FontManager.getRunescapeFont());
+					line.setForeground(step.loss ? theme.loss : theme.text);
+					stack(slotsTodo, line, 2);
+				}
+			}
+			for (SlotPlan.Step slot : plan.slots)
+			{
+				JLabel line = new JLabel(html("Slot " + (slot.slot + 1) + ": " + slot.status()));
+				line.setFont(FontManager.getRunescapeSmallFont());
+				line.setForeground(theme.muted);
+				stack(slotsList, line, 1);
+			}
+			if (plan.holds != null)
+			{
+				for (SlotPlan.Hold hold : plan.holds)
+				{
+					JLabel line = new JLabel(html("Holding " + hold.name + " out of the GE for now"));
+					line.setFont(FontManager.getRunescapeSmallFont());
+					line.setForeground(theme.muted);
+					stack(slotsList, line, 1);
+				}
+			}
+			String next = plan.nextCheckIn(java.time.ZoneId.systemDefault());
+			slotsNote.setText(html((next == null ? "" : "Next check-in around " + next + ". ")
+				+ "Do each step yourself, in order."));
+		}
+		slotsCard.setVisible(show);
+		slotsCard.setBorder(new EmptyBorder(10, 12, 10, 10));
+		slotsTodo.revalidate();
+		slotsList.revalidate();
 		revalidate();
 		repaint();
 	}

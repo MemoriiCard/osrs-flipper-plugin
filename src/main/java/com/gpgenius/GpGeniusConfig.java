@@ -223,6 +223,18 @@ public interface GpGeniusConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "slotManager",
+		name = "Slot manager",
+		description = "Show a plan for every GE slot: which offers to leave, collect, relist or cut, and what to sell and buy in the free ones. You still do every step yourself.",
+		section = suggestionSection,
+		position = 9
+	)
+	default boolean slotManager()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "checkIn",
 		name = "I check my offers",
 		description = "How often you come back to adjust offers. Often suggests fast flips; rarely suggests patient offers with wider margins and buy limits that last.",

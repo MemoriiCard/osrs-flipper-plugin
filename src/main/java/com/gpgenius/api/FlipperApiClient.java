@@ -47,6 +47,12 @@ public class FlipperApiClient
 	}
 
 	/** Links the game account to the player and returns their plan and announcements. */
+	/** The plan for every GE slot. Same body as a suggestion request. */
+	public void slots(SuggestionRequest body, Consumer<SlotPlan> onSuccess, Consumer<String> onError)
+	{
+		post("/v1/slots", body, SlotPlan.class, onSuccess, onError);
+	}
+
 	public void hello(String accountHash, String displayName, String version, Consumer<Me> onSuccess, Consumer<String> onError)
 	{
 		JsonObject body = new JsonObject();

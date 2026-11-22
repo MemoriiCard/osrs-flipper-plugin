@@ -2,6 +2,7 @@ package com.gpgenius.suggestion;
 
 import com.gpgenius.GpGeniusConfig;
 import com.gpgenius.api.FlipperApiClient;
+import com.gpgenius.api.SlotPlan;
 import com.gpgenius.api.Suggestion;
 import com.gpgenius.api.SuggestionRequest;
 import com.gpgenius.auth.AuthSession;
@@ -51,6 +52,7 @@ public class SuggestionController
 	private final AuthSession auth;
 	private final SkipList skips = new SkipList();
 	private final PlanState plan = new PlanState();
+	private final SlotPlanState slotPlan = new SlotPlanState();
 
 	@Getter
 	private Suggestion current;
@@ -94,6 +96,7 @@ public class SuggestionController
 		dirty = true;
 		skips.clear();
 		plan.reset();
+		slotPlan.reset();
 		onChange.run();
 	}
 
@@ -117,6 +120,12 @@ public class SuggestionController
 	public Suggestion.Plan getPlan()
 	{
 		return plan.getPlan();
+	}
+
+	/** The plan for every GE slot, or null before the first one arrives. */
+	public SlotPlan getSlotPlan()
+	{
+		return slotPlan.getPlan();
 	}
 
 	public void dismissPlan()
@@ -197,6 +206,28 @@ public class SuggestionController
 		api.suggest(request,
 			suggestion -> clientThread.invokeLater(() -> finish(requestGeneration, suggestion, null)),
 			message -> clientThread.invokeLater(() -> finish(requestGeneration, null, message)));
+		if (config.slotManager() && slotPlan.due(now))
+		{
+			slotPlan.sent(now);
+			api.slots(request,
+				result -> clientThread.invokeLater(() -> finishSlots(requestGeneration, result)),
+				message -> clientThread.invokeLater(() -> finishSlots(requestGeneration, null)));
+		}
+	}
+
+	private void finishSlots(int requestGeneration, SlotPlan result)
+	{
+		if (requestGeneration != generation)
+		{
+			return;
+		}
+		if (result == null)
+		{
+			slotPlan.failed();
+			return;
+		}
+		slotPlan.received(result);
+		onChange.run();
 	}
 
 	private void finish(int requestGeneration, Suggestion suggestion, String message)
