@@ -21,6 +21,9 @@ offer, and tracks your profit.
 - **Price chart.** Day, week and month charts of the item you're setting up or the suggested item.
 - **Offer slot colours.** Active offers are outlined green while their price still fills and red once
   the market has moved past it.
+- **Market warnings.** When an item's prices are unstable, or a game update or event is due, the
+  server pauses or lowers suggestions for it and the card shows a short warning, in simple and
+  advanced mode.
 - **Mis-click guard.** If a price looks like a typo (far from the market or the suggestion), Confirm
   moves off left-click and a warning explains why. It stays on the right-click menu.
 - **Profit tracking.** Every GE fill is recorded, buys and sells are paired oldest first, and profit is

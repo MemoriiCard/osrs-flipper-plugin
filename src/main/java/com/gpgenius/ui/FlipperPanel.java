@@ -65,6 +65,7 @@ public class FlipperPanel extends PluginPanel
 	private final JLabel suggestionProfit = new JLabel();
 	private final JLabel suggestionReason = new JLabel();
 	private final JLabel suggestionError = new JLabel();
+	private final JLabel marketWarning = new JLabel();
 	private final JLabel explanation = new JLabel();
 	private final ThemedButton skipButton = button("Skip", "Get a different suggestion", ThemedButton.Style.SECONDARY);
 	private final ThemedButton blockButton = button("Block", "Never suggest this item again. Undo it in settings under Blocked items.", ThemedButton.Style.GHOST);
@@ -237,6 +238,7 @@ public class FlipperPanel extends PluginPanel
 		stack(text, suggestionPrice, 2);
 		stack(text, suggestionProfit, 2);
 		stack(text, suggestionReason, 2);
+		stack(text, marketWarning, 2);
 		stack(text, suggestionError, 2);
 		stack(text, explanation, 2);
 		suggestionCard.add(text, BorderLayout.CENTER);
@@ -285,6 +287,7 @@ public class FlipperPanel extends PluginPanel
 		suggestionProfit.setForeground(theme.profit);
 		suggestionReason.setForeground(theme.muted);
 		suggestionError.setForeground(theme.loss);
+		marketWarning.setForeground(theme.warning);
 		explanation.setForeground(theme.muted);
 	}
 
@@ -514,6 +517,10 @@ public class FlipperPanel extends PluginPanel
 		suggestionReason.setVisible(!reason.isEmpty());
 		suggestionError.setText(error == null ? "" : html(error));
 		suggestionError.setVisible(error != null);
+		// Market warnings show in simple and advanced mode alike, even when the reason is hidden.
+		String warning = enabled && suggestion != null ? String.join(" ", suggestion.warnings(reason)) : "";
+		marketWarning.setText(html(warning));
+		marketWarning.setVisible(!warning.isEmpty());
 		recolorSuggestion();
 
 		boolean hasItem = enabled && suggestion != null && suggestion.itemId != null;
