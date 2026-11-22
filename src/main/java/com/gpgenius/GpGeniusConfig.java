@@ -188,9 +188,31 @@ public interface GpGeniusConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "compactLayout",
+		name = "Compact panel",
+		description = "Only the next step and your profit: hides the price chart and the flip list. Saved with your profile.",
+		position = -1
+	)
+	default boolean compactLayout()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "sounds",
+		name = "Notification sounds",
+		description = "Turn off to keep reminders and alerts silent. Saved with your profile.",
+		position = -1
+	)
+	default boolean sounds()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "viewMode",
 		name = "Panel view",
-		description = "Simple shows the next step and your profit. Advanced adds the reasoning, ratings, 'why this item' and every recent flip.",
+		description = "Simple shows the next step and your profit. Advanced adds each step's detail, ratings and every recent flip.",
 		position = -1
 	)
 	default ViewMode viewMode()
@@ -496,6 +518,18 @@ public interface GpGeniusConfig extends Config
 		hidden = true
 	)
 	default String setupPreset()
+	{
+		return "";
+	}
+
+	/** The saved profile in use, by its server id. Empty means none. */
+	@ConfigItem(
+		keyName = "activeProfileId",
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default String activeProfileId()
 	{
 		return "";
 	}

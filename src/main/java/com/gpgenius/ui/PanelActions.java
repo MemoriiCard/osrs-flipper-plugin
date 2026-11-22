@@ -25,8 +25,6 @@ public interface PanelActions
 	/** 1 for good, -1 for bad. */
 	void rate(int rating);
 
-	void explain();
-
 	/** Make a dump alert the current suggestion. */
 	void useAlert(com.gpgenius.api.DumpAlert alert);
 
@@ -41,10 +39,19 @@ public interface PanelActions
 	/** Copy past trades from the Flipping Utilities plugin's files on this computer. */
 	void importHistory();
 
-	/** Save the settings from the first-run wizard or a preset. */
-	void applySetup(com.gpgenius.setup.Preset.Settings settings);
+	/** Start with a fast-start preset, by its id. */
+	void choosePreset(String presetId);
 
-	/** Close the first-run wizard without changing settings. */
+	void switchProfile(String profileId);
+
+	/** Save the current settings as a new profile and switch to it. */
+	void newProfile(String name);
+
+	void renameProfile(String profileId, String name);
+
+	void deleteProfile(String profileId);
+
+	/** Close the preset picker without changing settings. */
 	void skipSetup();
 
 	/** Hide the welcome-back plan and go back to one step at a time. */

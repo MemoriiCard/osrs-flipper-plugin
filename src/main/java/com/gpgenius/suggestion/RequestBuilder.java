@@ -38,7 +38,11 @@ public final class RequestBuilder
 		profile.timeframeMinutes = settings.timeframeMinutes;
 		profile.f2pOnly = settings.f2pOnly;
 		profile.blockedItemIds = parseItemIds(settings.blockedItems);
-		profile.minProfitPerFlip = Math.max(0, settings.minProfit);
+		boolean fromPreset = settings.preset != null || settings.profileId != null;
+		request.preset = settings.preset;
+		request.profileId = settings.profileId;
+		// With a preset, "no minimum" means "the preset's minimum", so leave it out.
+		profile.minProfitPerFlip = settings.minProfit > 0 || !fromPreset ? (long) Math.max(0, settings.minProfit) : null;
 		profile.membersOnly = settings.membersOnly && !settings.f2pOnly;
 		profile.coinCap = settings.coinCap > 0 ? (long) settings.coinCap : null;
 		profile.maxItemPercent = settings.maxItemPercent > 0 ? Math.min(100, settings.maxItemPercent) : null;
@@ -142,6 +146,9 @@ public final class RequestBuilder
 		public String favouriteItems = "";
 		/** Server category names, such as "runes". Empty means every category. */
 		public List<String> categories = new ArrayList<>();
+		/** The fast-start preset or saved profile in use; null for neither. */
+		public String preset;
+		public String profileId;
 	}
 
 	/** Item IDs used when reading the inventory. */

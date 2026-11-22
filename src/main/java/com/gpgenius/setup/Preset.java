@@ -1,44 +1,41 @@
 package com.gpgenius.setup;
 
 import com.gpgenius.GpGeniusConfig.CheckIn;
-import com.gpgenius.GpGeniusConfig.ItemScope;
 import com.gpgenius.GpGeniusConfig.RiskLevel;
+import com.gpgenius.api.Profiles;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
 
 /**
- * Named starting points for the settings, picked in the first-run wizard or switched to later in
- * one click. A preset only changes settings; the player still does every trade by hand.
+ * A fast-start preset as the player sees it: a name, one line about it, and the risk and check-in
+ * time it starts with. What a preset does to suggestions is decided on the server; the plugin only
+ * sends the preset's id. The built-in list is shown until the server's list arrives.
  */
-public enum Preset
+public final class Preset
 {
-	AFK_OVERNIGHT("AFK overnight",
-		"Patient offers with wide margins and buy limits that last, for checking once or twice a day.",
-		RiskLevel.MEDIUM, CheckIn.HOURS_8, ItemScope.ANY, 25),
-	ACTIVE_SESSION("Active session",
-		"Quick flips that fill in minutes, for when you're at the GE and checking often.",
-		RiskLevel.MEDIUM, CheckIn.MINUTES_15, ItemScope.ANY, 0),
-	BANK_BUILDER("Low-risk bank builder",
-		"Steady, high-volume items, with no more than a fifth of your coins in any one item.",
-		RiskLevel.LOW, CheckIn.HOUR_1, ItemScope.ANY, 20),
-	F2P_STARTER("F2P starter",
-		"Free-to-play items at low risk, for a small stack or a new account.",
-		RiskLevel.LOW, CheckIn.MINUTES_30, ItemScope.F2P, 34);
+	public static final List<Preset> BUILT_IN = Collections.unmodifiableList(Arrays.asList(
+		new Preset("active", "Active", "Quick flips that fill in minutes, for when you're at the GE and checking often.", RiskLevel.MEDIUM, CheckIn.MINUTES_15),
+		new Preset("afk", "AFK", "Steady offers you can leave for a couple of hours while you skill or boss.", RiskLevel.MEDIUM, CheckIn.HOURS_2),
+		new Preset("overnight", "Overnight", "Patient, low-risk offers with wide margins, for checking once or twice a day.", RiskLevel.LOW, CheckIn.HOURS_8),
+		new Preset("low_budget", "Low budget", "Cheap, fast-moving items so a small stack of coins keeps working.", RiskLevel.LOW, CheckIn.MINUTES_30),
+		new Preset("high_volume", "High volume", "Busy items in big quantities, spread across many slots.", RiskLevel.MEDIUM, CheckIn.MINUTES_30)));
 
+	public final String id;
 	public final String label;
-	public final String description;
+	public final String blurb;
 	public final RiskLevel risk;
 	public final CheckIn checkIn;
-	public final ItemScope itemScope;
-	/** Max per item as a percentage of flipping coins; 0 means no extra cap. */
-	public final int maxItemPercent;
 
-	Preset(String label, String description, RiskLevel risk, CheckIn checkIn, ItemScope itemScope, int maxItemPercent)
+	public Preset(String id, String label, String blurb, RiskLevel risk, CheckIn checkIn)
 	{
+		this.id = id;
 		this.label = label;
-		this.description = description;
+		this.blurb = blurb;
 		this.risk = risk;
 		this.checkIn = checkIn;
-		this.itemScope = itemScope;
-		this.maxItemPercent = maxItemPercent;
 	}
 
 	@Override
@@ -47,94 +44,72 @@ public enum Preset
 		return label;
 	}
 
-	/** First question: roughly how many coins. */
-	public enum Coins
+	/** The server's presets, or the built-in list when the server sent none it could use. */
+	public static List<Preset> fromServer(List<Profiles.PresetInfo> infos)
 	{
-		UNDER_1M("Under 1m"),
-		TO_10M("1m to 10m"),
-		TO_100M("10m to 100m"),
-		OVER_100M("100m+");
-
-		public final String label;
-
-		Coins(String label)
+		List<Preset> out = new ArrayList<>();
+		if (infos != null)
 		{
-			this.label = label;
+			for (Profiles.PresetInfo info : infos)
+			{
+				if (info != null && info.id != null && info.label != null)
+				{
+					out.add(new Preset(info.id, info.label, info.blurb == null ? "" : info.blurb,
+						risk(info.risk), nearestCheckIn(info.checkInMinutes)));
+				}
+			}
 		}
+		return out.isEmpty() ? BUILT_IN : Collections.unmodifiableList(out);
 	}
 
-	/** Second question: how often the player will check. */
-	public enum Often
+	/** The preset with this id, or null. */
+	public static Preset byId(List<Preset> presets, String id)
 	{
-		MINUTES("Every few minutes", CheckIn.MINUTES_15),
-		HOURLY("About hourly", CheckIn.HOUR_1),
-		FEW_A_DAY("A few times a day", CheckIn.HOURS_4),
-		DAILY("Once a day", CheckIn.HOURS_12);
-
-		public final String label;
-		public final CheckIn checkIn;
-
-		Often(String label, CheckIn checkIn)
+		for (Preset p : presets)
 		{
-			this.label = label;
-			this.checkIn = checkIn;
+			if (p.id.equals(id))
+			{
+				return p;
+			}
 		}
+		return null;
 	}
 
-	/** Third question: how much risk is OK. */
-	public enum Appetite
+	public static RiskLevel risk(String name)
 	{
-		SAFE("Play it safe", RiskLevel.LOW),
-		BALANCED("Balanced", RiskLevel.MEDIUM),
-		BOLD("Bigger margins", RiskLevel.HIGH);
-
-		public final String label;
-		public final RiskLevel risk;
-
-		Appetite(String label, RiskLevel risk)
+		if (name != null)
 		{
-			this.label = label;
-			this.risk = risk;
+			for (RiskLevel r : RiskLevel.values())
+			{
+				if (r.name().equalsIgnoreCase(name.trim()))
+				{
+					return r;
+				}
+			}
 		}
+		return RiskLevel.MEDIUM;
 	}
 
-	/** The preset that best fits the wizard's three answers. */
-	public static Preset recommend(Coins coins, Often often, Appetite appetite)
+	/** The check-in setting closest to a number of minutes. */
+	public static CheckIn nearestCheckIn(int minutes)
 	{
-		if (coins == Coins.UNDER_1M)
+		CheckIn best = CheckIn.MINUTES_30;
+		int bestGap = Integer.MAX_VALUE;
+		for (CheckIn c : CheckIn.values())
 		{
-			return F2P_STARTER;
+			int gap = Math.abs(c.minutes - minutes);
+			if (gap < bestGap)
+			{
+				best = c;
+				bestGap = gap;
+			}
 		}
-		if (often == Often.FEW_A_DAY || often == Often.DAILY)
-		{
-			return AFK_OVERNIGHT;
-		}
-		if (appetite == Appetite.SAFE)
-		{
-			return BANK_BUILDER;
-		}
-		return ACTIVE_SESSION;
+		return best;
 	}
 
-	/** The settings to save: the preset, with the player's own check-in time and risk answers on top. */
-	public static Settings settings(Preset preset, Often often, Appetite appetite)
+	/** Lower-case id for usage counters. */
+	public String key()
 	{
-		Settings s = new Settings();
-		s.preset = preset;
-		s.risk = appetite == null ? preset.risk : appetite.risk;
-		s.checkIn = often == null ? preset.checkIn : often.checkIn;
-		s.itemScope = preset.itemScope;
-		s.maxItemPercent = preset.maxItemPercent;
-		return s;
-	}
-
-	/** What applying a preset writes to the config. */
-	public static class Settings
-	{
-		public Preset preset;
-		public RiskLevel risk;
-		public CheckIn checkIn;
-		public ItemScope itemScope;
-		public int maxItemPercent;
+		return id.toLowerCase(Locale.ROOT);
 	}
 }
