@@ -88,6 +88,9 @@ public class Suggestion
 	/** Plain-language market warnings: the whole market, then the suggested item and the player's own. */
 	@SerializedName("market_notices")
 	public List<MarketNotice> marketNotices;
+	/** Set while the player's goal is choosing the preset: how often to check in to keep pace. */
+	@SerializedName("goal_check_in_minutes")
+	public Integer goalCheckInMinutes;
 
 	public static class MarketNotice
 	{

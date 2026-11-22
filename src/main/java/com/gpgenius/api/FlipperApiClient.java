@@ -171,6 +171,43 @@ public class FlipperApiClient
 		post("/v1/profiles/" + id + "/delete", new JsonObject(), null, ignored -> onSuccess.run(), onError);
 	}
 
+	/** Profit at a glance, the goal and the suggested stack. accountHash may be null. */
+	public void progress(String accountHash, Consumer<Progress> onSuccess, Consumer<String> onError)
+	{
+		String path = "/v1/progress";
+		if (accountHash != null && accountHash.matches("-?\\d{1,20}"))
+		{
+			path += "?account_hash=" + accountHash;
+		}
+		get(path, Progress.class, onSuccess, onError);
+	}
+
+	/** Starts a new profit session for this character, or every character when all is true. */
+	public void resetSession(String accountHash, String accountId, boolean all, Consumer<Progress> onSuccess, Consumer<String> onError)
+	{
+		JsonObject body = new JsonObject();
+		if (accountHash != null)
+		{
+			body.addProperty("account_hash", accountHash);
+		}
+		if (accountId != null && accountId.matches("[0-9a-fA-F-]{36}"))
+		{
+			body.addProperty("account_id", accountId);
+		}
+		body.addProperty("all", all);
+		post("/v1/session/reset", body, Progress.class, onSuccess, onError);
+	}
+
+	public void setGoal(GoalRequest body, Consumer<Progress> onSuccess, Consumer<String> onError)
+	{
+		post("/v1/goal", body, Progress.class, onSuccess, onError);
+	}
+
+	public void deleteGoal(Runnable onSuccess, Consumer<String> onError)
+	{
+		post("/v1/goal/delete", new JsonObject(), null, ignored -> onSuccess.run(), onError);
+	}
+
 	private <T> void post(String path, Object body, Class<T> type, Consumer<T> onSuccess, Consumer<String> onError)
 	{
 		auth.send(path, gson.toJson(body), response -> read(response, type, onSuccess, onError), onError);

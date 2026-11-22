@@ -252,6 +252,7 @@ public class SuggestionController
 		if (night)
 		{
 			request.mode = "overnight";
+			request.followGoal = false;
 			request.awayHours = overnight.getHours();
 			// The overnight plan covers every slot; the welcome-back plan would only compete with it.
 			request.plan = false;

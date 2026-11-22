@@ -73,4 +73,19 @@ public interface PanelActions
 
 	/** Save the player's trades as a CSV file. */
 	void exportTrades();
+
+	/** Start a new profit session: "current" for this character, "all" for every one, or a character id. */
+	void resetSession(String scope);
+
+	/**
+	 * Set the goal, replacing any earlier one.
+	 *
+	 * @param kind profit or stack
+	 * @param deadline ISO-8601 with offset
+	 * @param allCharacters false for just the character logged in now
+	 * @param adapt let the goal pick the preset and check-in rhythm while it runs
+	 */
+	void setGoal(String kind, long target, String deadline, boolean allCharacters, boolean adapt);
+
+	void clearGoal();
 }

@@ -32,6 +32,9 @@ public class SuggestionRequest
 	/** Hours the player will be away, for overnight mode. Null lets the server choose. */
 	@SerializedName("away_hours")
 	public Integer awayHours;
+	/** Let the player's goal pick the preset and check-in rhythm while it runs (when the goal allows it). */
+	@SerializedName("follow_goal")
+	public boolean followGoal = true;
 
 	public static class Profile
 	{

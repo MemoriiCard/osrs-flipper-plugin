@@ -5,6 +5,7 @@ import com.gpgenius.api.DeviceStart;
 import com.gpgenius.api.DumpAlert;
 import com.gpgenius.api.Me;
 import com.gpgenius.api.PriceHistory;
+import com.gpgenius.api.Progress;
 import com.gpgenius.api.Profiles;
 import com.gpgenius.api.SlotPlan;
 import com.gpgenius.api.Suggestion;
@@ -158,10 +159,47 @@ public class FlipperPanel extends PluginPanel
 		button("Month", "Last 30 days, hourly averages", ThemedButton.Style.SEGMENT),
 	};
 
-	private final RoundedPanel sessionTile = card();
-	private final RoundedPanel allTimeTile = card();
-	private final JLabel sessionValue = new JLabel();
-	private final JLabel allTimeValue = new JLabel();
+	private final RoundedPanel goalCard = card();
+	private final JLabel goalTitle = new JLabel();
+	private final Pill goalPill = new Pill();
+	private final GoalBar goalBar = new GoalBar();
+	private final JLabel goalProgress = new JLabel();
+	private final JLabel goalAdvice = new JLabel();
+	private final JLabel goalError = new JLabel();
+	private final ThemedButton setGoalButton = button("Set a goal", "Pick a target and a date. Suggestions and check-in reminders can adapt to keep you on pace.", ThemedButton.Style.SECONDARY);
+	private final ThemedButton clearGoalButton = button("Clear", "Stop tracking this goal", ThemedButton.Style.GHOST);
+
+	private final RoundedPanel profitCard = card();
+	private final JLabel profitTitle = new JLabel("Profit");
+	private final JComboBox<ScopeChoice> scopeBox = new JComboBox<>();
+	private final JPanel profitRows = new JPanel(new GridLayout(0, 2, 6, 3));
+	private final JLabel stackLine = new JLabel();
+	private final ThemedButton resetSessionButton = button("Reset session", "Start a new session for the characters shown. Every other total stays as it is.", ThemedButton.Style.GHOST);
+	/** From the server while signed in; null shows only this computer's session and all-time totals. */
+	private Progress progress;
+	private String progressError;
+	private String scopeKey = Progress.CURRENT;
+	private boolean fillingScopes;
+
+	/** One entry in the profit card's character picker. */
+	private static final class ScopeChoice
+	{
+		final String key;
+		final String label;
+
+		ScopeChoice(String key, String label)
+		{
+			this.key = key;
+			this.label = label;
+		}
+
+		@Override
+		public String toString()
+		{
+			return label;
+		}
+	}
+
 	private final JLabel flipsHeading = new JLabel();
 	private final JPanel flipList = column();
 
@@ -190,6 +228,8 @@ public class FlipperPanel extends PluginPanel
 		content.add(accountCard(actions));
 		content.add(Box.createVerticalStrut(8));
 		content.add(announcements);
+		content.add(goalCard(actions));
+		content.add(Box.createVerticalStrut(8));
 		content.add(planCard(actions));
 		content.add(overnightCard(actions));
 		content.add(slotsCard());
@@ -198,7 +238,7 @@ public class FlipperPanel extends PluginPanel
 		content.add(alertList);
 		content.add(chartCard(actions));
 		content.add(Box.createVerticalStrut(8));
-		content.add(stats());
+		content.add(profitCard(actions));
 		content.add(Box.createVerticalStrut(10));
 		content.add(flipsHeading);
 		content.add(Box.createVerticalStrut(4));
@@ -249,6 +289,7 @@ public class FlipperPanel extends PluginPanel
 		// Rows built from data pick up the theme when rebuilt.
 		showAlerts(alerts);
 		update(loggedIn, sessionProfit, allTimeProfit, flips);
+		renderGoal();
 		showPlan(plan);
 		showSlots(slotPlan);
 		recolorSuggestion();
@@ -940,31 +981,282 @@ public class FlipperPanel extends PluginPanel
 		return chartCard;
 	}
 
-	private JComponent stats()
+	private JComponent goalCard(PanelActions actions)
 	{
-		JPanel tiles = new JPanel(new GridLayout(1, 2, 8, 0));
-		tiles.setOpaque(false);
-		tiles.setAlignmentX(LEFT_ALIGNMENT);
-		tiles.add(tile(sessionTile, "Session", sessionValue));
-		tiles.add(tile(allTimeTile, "All time", allTimeValue));
-		return tiles;
+		goalTitle.setFont(FontManager.getRunescapeBoldFont());
+		goalPill.setFont(FontManager.getRunescapeSmallFont());
+		goalProgress.setFont(FontManager.getRunescapeSmallFont());
+		goalAdvice.setFont(FontManager.getRunescapeSmallFont());
+		goalError.setFont(FontManager.getRunescapeSmallFont());
+		JPanel head = new JPanel(new BorderLayout(4, 0));
+		head.setOpaque(false);
+		head.add(goalTitle, BorderLayout.CENTER);
+		head.add(goalPill, BorderLayout.EAST);
+		JPanel text = column();
+		stack(text, head, 0);
+		stack(text, goalBar, 6);
+		stack(text, goalProgress, 4);
+		stack(text, goalAdvice, 4);
+		stack(text, goalError, 4);
+		goalCard.add(text, BorderLayout.CENTER);
+		setGoalButton.addActionListener(e -> askGoal(actions));
+		clearGoalButton.addActionListener(e ->
+		{
+			if (javax.swing.JOptionPane.showConfirmDialog(this, "Stop tracking this goal?", "GP Genius",
+				javax.swing.JOptionPane.OK_CANCEL_OPTION) == javax.swing.JOptionPane.OK_OPTION)
+			{
+				actions.clearGoal();
+			}
+		});
+		JPanel buttons = row();
+		buttons.add(setGoalButton);
+		buttons.add(clearGoalButton);
+		goalCard.add(buttons, BorderLayout.SOUTH);
+		painters.add(() ->
+		{
+			goalCard.setColors(theme.surface, theme.border);
+			goalCard.setStripe(theme.accent);
+			goalTitle.setForeground(theme.text);
+			goalProgress.setForeground(theme.muted);
+			goalAdvice.setForeground(theme.text);
+			goalError.setForeground(theme.loss);
+		});
+		goalCard.setVisible(false);
+		return goalCard;
 	}
 
-	private RoundedPanel tile(RoundedPanel tile, String name, JLabel value)
+	/** The goal form. Every offer is still placed by the player; the goal only shapes suggestions. */
+	private void askGoal(PanelActions actions)
+	{
+		JComboBox<String> kind = new JComboBox<>(new String[]{"Make this much profit", "Reach this cash stack"});
+		javax.swing.JTextField amount = new javax.swing.JTextField(10);
+		amount.setToolTipText("For example 100m or 1.5b");
+		java.util.List<com.gpgenius.goal.GoalInput.Deadline> days =
+			com.gpgenius.goal.GoalInput.deadlines(java.time.ZonedDateTime.now());
+		JComboBox<com.gpgenius.goal.GoalInput.Deadline> by =
+			new JComboBox<>(days.toArray(new com.gpgenius.goal.GoalInput.Deadline[0]));
+		by.setSelectedIndex(com.gpgenius.goal.GoalInput.indexOf(days, java.time.DayOfWeek.FRIDAY));
+		JComboBox<String> who = new JComboBox<>(new String[]{"This character", "All my characters"});
+		javax.swing.JCheckBox adapt = new javax.swing.JCheckBox("Adapt suggestions and check-ins to the goal", true);
+		Progress.Goal current = progress == null ? null : progress.goal;
+		if (current != null)
+		{
+			kind.setSelectedIndex(current.isStack() ? 1 : 0);
+			amount.setText(QuantityFormatter.quantityToStackSize(current.target));
+			who.setSelectedIndex(current.accountId == null ? 1 : 0);
+			adapt.setSelected(current.adapt);
+		}
+		JPanel form = new JPanel(new GridLayout(0, 1, 0, 4));
+		form.add(new JLabel("Goal"));
+		form.add(kind);
+		form.add(new JLabel("Amount (such as 100m or 1.5b)"));
+		form.add(amount);
+		form.add(new JLabel("By the end of"));
+		form.add(by);
+		form.add(new JLabel("For"));
+		form.add(who);
+		form.add(adapt);
+		while (true)
+		{
+			int answer = javax.swing.JOptionPane.showConfirmDialog(this, form, "Set a goal",
+				javax.swing.JOptionPane.OK_CANCEL_OPTION, javax.swing.JOptionPane.PLAIN_MESSAGE);
+			if (answer != javax.swing.JOptionPane.OK_OPTION)
+			{
+				return;
+			}
+			Long target = com.gpgenius.goal.GoalInput.parseAmount(amount.getText());
+			Object picked = by.getSelectedItem();
+			if (target == null || !(picked instanceof com.gpgenius.goal.GoalInput.Deadline))
+			{
+				javax.swing.JOptionPane.showMessageDialog(this, "Enter an amount such as 100m or 1.5b.", "GP Genius",
+					javax.swing.JOptionPane.WARNING_MESSAGE);
+				continue;
+			}
+			String deadline = ((com.gpgenius.goal.GoalInput.Deadline) picked).at
+				.format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+			actions.setGoal(kind.getSelectedIndex() == 1 ? "stack" : "profit", target, deadline,
+				who.getSelectedIndex() == 1, adapt.isSelected());
+			return;
+		}
+	}
+
+	private JComponent profitCard(PanelActions actions)
+	{
+		profitTitle.setFont(FontManager.getRunescapeBoldFont());
+		scopeBox.setFont(FontManager.getRunescapeSmallFont());
+		scopeBox.setToolTipText("Show one character or all of them together");
+		scopeBox.addActionListener(e ->
+		{
+			Object picked = scopeBox.getSelectedItem();
+			if (!fillingScopes && picked instanceof ScopeChoice)
+			{
+				scopeKey = ((ScopeChoice) picked).key;
+				renderProfit();
+			}
+		});
+		resetSessionButton.addActionListener(e ->
+		{
+			String who = Progress.ALL.equals(scopeKey) ? "every character" : "this character";
+			if (javax.swing.JOptionPane.showConfirmDialog(this, "Start a new session for " + who + "?", "GP Genius",
+				javax.swing.JOptionPane.OK_CANCEL_OPTION) == javax.swing.JOptionPane.OK_OPTION)
+			{
+				actions.resetSession(scopeKey);
+			}
+		});
+		profitRows.setOpaque(false);
+		stackLine.setFont(FontManager.getRunescapeSmallFont());
+		JPanel head = new JPanel(new BorderLayout(4, 0));
+		head.setOpaque(false);
+		head.add(profitTitle, BorderLayout.WEST);
+		head.add(scopeBox, BorderLayout.CENTER);
+		JPanel text = column();
+		stack(text, head, 0);
+		stack(text, profitRows, 6);
+		stack(text, stackLine, 6);
+		profitCard.add(text, BorderLayout.CENTER);
+		JPanel buttons = row();
+		buttons.add(resetSessionButton);
+		profitCard.add(buttons, BorderLayout.SOUTH);
+		painters.add(() ->
+		{
+			profitCard.setColors(theme.surface, theme.border);
+			profitTitle.setForeground(theme.text);
+			stackLine.setForeground(theme.text);
+		});
+		return profitCard;
+	}
+
+	/** Profit at a glance, the goal and the suggested stack from the server. Null falls back to local totals. */
+	public void showProgress(Progress progress, String error)
+	{
+		this.progress = progress;
+		this.progressError = error;
+		fillingScopes = true;
+		scopeBox.removeAllItems();
+		java.util.List<ScopeChoice> choices = new ArrayList<>();
+		choices.add(new ScopeChoice(Progress.CURRENT, "This character"));
+		if (progress != null && progress.characters != null && progress.characters.size() > 1)
+		{
+			choices.add(new ScopeChoice(Progress.ALL, "All characters"));
+			for (Progress.Character c : progress.characters)
+			{
+				if (c.id != null && !c.id.equals(progress.currentId))
+				{
+					choices.add(new ScopeChoice(c.id, c.name));
+				}
+			}
+		}
+		ScopeChoice selected = choices.get(0);
+		for (ScopeChoice c : choices)
+		{
+			scopeBox.addItem(c);
+			if (c.key.equals(scopeKey))
+			{
+				selected = c;
+			}
+		}
+		scopeKey = selected.key;
+		scopeBox.setSelectedItem(selected);
+		scopeBox.setVisible(choices.size() > 1);
+		fillingScopes = false;
+		renderProfit();
+		renderGoal();
+	}
+
+	private void renderProfit()
+	{
+		profitRows.removeAll();
+		Progress.Character shown = progress == null ? null : progress.scope(scopeKey);
+		if (shown == null)
+		{
+			profitRow("Session", sessionProfit, null);
+			profitRow("All time", allTimeProfit, null);
+			stackLine.setVisible(false);
+		}
+		else
+		{
+			java.util.List<String> keys = progress.windows == null || progress.windows.isEmpty()
+				? java.util.Arrays.asList("session", "hour", "12h", "day", "week", "month", "all")
+				: progress.windows;
+			// Session first: it's the one players watch while they flip.
+			if (keys.contains("session"))
+			{
+				profitRow(progress.label("session"), shown.window("session").profit,
+					shown.sessionPerHour == null ? null : signedGp(shown.sessionPerHour) + "/hr");
+			}
+			for (String key : keys)
+			{
+				if (!"session".equals(key))
+				{
+					Progress.Window w = shown.window(key);
+					profitRow(progress.label(key), w.profit, w.flips == 1 ? "1 flip" : w.flips + " flips");
+				}
+			}
+			String tier = shown.suggestedStackLabel;
+			stackLine.setText(tier == null ? "" : html("Suggested minimum cash stack: " + tier
+				+ ". Keep at least this much flipping to hold on to the gains you've reached."));
+			stackLine.setVisible(tier != null && !compact);
+		}
+		resetSessionButton.setVisible(loggedIn);
+		profitCard.setBorder(new EmptyBorder(10, 12, 10, 10));
+		profitRows.revalidate();
+		profitRows.repaint();
+		revalidate();
+	}
+
+	private void profitRow(String name, long value, String detail)
 	{
 		JLabel label = new JLabel(name);
 		label.setFont(FontManager.getRunescapeSmallFont());
-		value.setFont(FontManager.getRunescapeBoldFont());
-		JPanel text = column();
-		stack(text, label, 2);
-		stack(text, value, 2);
-		tile.add(text, BorderLayout.CENTER);
-		painters.add(() ->
+		label.setForeground(theme.muted);
+		JLabel amount = new JLabel(signedGp(value));
+		amount.setFont(FontManager.getRunescapeBoldFont());
+		amount.setForeground(value < 0 ? theme.loss : value > 0 ? theme.profit : theme.text);
+		amount.setHorizontalAlignment(JLabel.RIGHT);
+		if (detail != null)
 		{
-			tile.setColors(theme.surface, theme.border);
-			label.setForeground(theme.muted);
-		});
-		return tile;
+			amount.setToolTipText(detail);
+			label.setToolTipText(detail);
+		}
+		profitRows.add(label);
+		profitRows.add(amount);
+	}
+
+	private void renderGoal()
+	{
+		boolean signedIn = progress != null;
+		Progress.Goal g = signedIn ? progress.goal : null;
+		goalCard.setVisible(signedIn && !compact || g != null);
+		if (g == null)
+		{
+			goalTitle.setText(html("No goal set"));
+			goalPill.set("", theme.muted);
+			goalBar.setVisible(false);
+			goalProgress.setText(html("Pick a target and a date, such as 100M by Friday. You'll see your pace here."));
+			goalAdvice.setVisible(false);
+			setGoalButton.setText("Set a goal");
+			clearGoalButton.setVisible(false);
+		}
+		else
+		{
+			goalTitle.setText(html(com.gpgenius.goal.GoalText.title(g)));
+			Color pillColor = "behind".equals(g.status) || "missed".equals(g.status) ? theme.warning
+				: "done".equals(g.status) || "ahead".equals(g.status) ? theme.profit : theme.accent;
+			goalPill.set(g.statusText == null ? "" : g.statusText, pillColor);
+			goalBar.set(g.fraction, theme.raised, theme.profit);
+			goalBar.setVisible(true);
+			goalProgress.setText(html(com.gpgenius.goal.GoalText.progress(g, java.time.Instant.now())));
+			String advice = com.gpgenius.goal.GoalText.advice(g);
+			goalAdvice.setText(html(advice));
+			goalAdvice.setVisible(!advice.isEmpty());
+			setGoalButton.setText(g.isLive() ? "Change" : "New goal");
+			clearGoalButton.setVisible(true);
+		}
+		goalError.setText(progressError == null ? "" : html(progressError));
+		goalError.setVisible(progressError != null);
+		goalCard.setBorder(new EmptyBorder(10, 12, 10, 10));
+		revalidate();
+		repaint();
 	}
 
 	/** Shows the chart, or hides the card when there is no item to chart. */
@@ -1250,10 +1542,6 @@ public class FlipperPanel extends PluginPanel
 		this.allTimeProfit = allTimeProfit;
 		this.flips = recentFlips;
 
-		sessionValue.setText(signedGp(sessionProfit));
-		sessionValue.setForeground(sessionProfit < 0 ? theme.loss : theme.profit);
-		allTimeValue.setText(signedGp(allTimeProfit));
-		allTimeValue.setForeground(allTimeProfit < 0 ? theme.loss : theme.profit);
 		flipsHeading.setText(loggedIn
 			? (recentFlips.isEmpty() ? html("No flips yet. Buy and sell on the GE to start tracking.") : "RECENT FLIPS")
 			: "Log in to see your flips.");
@@ -1270,6 +1558,7 @@ public class FlipperPanel extends PluginPanel
 			stack(flipList, flipRow(flip), 4);
 			shown++;
 		}
+		renderProfit();
 		importRow.setVisible(loggedIn && !compact);
 		flipsHeading.setVisible(!compact);
 		flipList.setVisible(!compact);
