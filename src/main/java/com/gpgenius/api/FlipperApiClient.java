@@ -46,6 +46,14 @@ public class FlipperApiClient
 		}, onError);
 	}
 
+	/** Pro: a short plain-language "why this item?" from the AI market analyst. */
+	public void explain(int itemId, Consumer<String> onSuccess, Consumer<String> onError)
+	{
+		JsonObject body = new JsonObject();
+		body.addProperty("item_id", itemId);
+		post("/v1/explain", body, Explanation.class, e -> onSuccess.accept(e == null ? null : e.answer), onError);
+	}
+
 	/** The plan for every GE slot. Same body as a suggestion request. */
 	public void slots(SuggestionRequest body, Consumer<SlotPlan> onSuccess, Consumer<String> onError)
 	{
@@ -255,6 +263,12 @@ public class FlipperApiClient
 	private void logOnly(String message)
 	{
 		log.debug("Background request failed: {}", message);
+	}
+
+	/** Reply from /v1/explain. */
+	public static class Explanation
+	{
+		public String answer;
 	}
 
 	/** Reply from /v1/alerts. */

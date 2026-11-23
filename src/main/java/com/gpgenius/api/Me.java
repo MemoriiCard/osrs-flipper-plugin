@@ -23,6 +23,15 @@ public class Me
 	public String trialWaiting;
 	@SerializedName("trial_discord_min_age_days")
 	public int trialDiscordMinAgeDays;
+	/** The plan for the current game account: free, premium or pro. Older servers don't send it. */
+	public String tier;
+	@SerializedName("tier_name")
+	public String tierName;
+	@SerializedName("tier_summary")
+	public String tierSummary;
+	@SerializedName("refresh_seconds")
+	public int refreshSeconds;
+	public boolean explanations;
 
 	public static class GameAccount
 	{
@@ -71,6 +80,11 @@ public class Me
 	public String freePlanText()
 	{
 		String text = "Suggestions from popular free-to-play items. Premium unlocks every item, members items on members worlds, and dump alerts.";
+		if (tier != null)
+		{
+			text = "Suggestions from popular free-to-play items, refreshed " + Tier.every(refreshSeconds)
+				+ ". Premium unlocks every item on fresher prices, members items on members worlds, and dump alerts.";
+		}
 		if ("needs_discord".equals(trialWaiting))
 		{
 			return text + " Link your Discord account on the website to start your free premium trial.";
@@ -81,6 +95,24 @@ public class Me
 				+ " days old. It starts once yours is.";
 		}
 		return text;
+	}
+
+	/** Whether the current game account is on Pro (the top plan). */
+	public boolean pro()
+	{
+		return Tier.PRO.equals(tier);
+	}
+
+	/** The paid plan's line: seats, the end date if any, and how often suggestions refresh. */
+	public String paidPlanText()
+	{
+		String text = seats + " game account" + (seats == 1 ? "" : "s")
+			+ (premiumUntil != null && premiumUntil.length() >= 10 ? ", until " + premiumUntil.substring(0, 10) : "") + ".";
+		if (tier == null)
+		{
+			return text;
+		}
+		return text + " " + Tier.line(tier, tierSummary, refreshSeconds);
 	}
 
 	/** Whether the game account the player is logged in to gets premium suggestions. */

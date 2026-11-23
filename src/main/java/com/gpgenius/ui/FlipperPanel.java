@@ -77,6 +77,9 @@ public class FlipperPanel extends PluginPanel
 	private final JLabel suggestionError = new JLabel();
 	private final JLabel marketWarning = new JLabel();
 	private final ThemedButton skipButton = button("Skip", "Get a different suggestion", ThemedButton.Style.SECONDARY);
+	private final ThemedButton whyButton = button("Why?", "Pro: why this item, from the AI market analyst", ThemedButton.Style.SECONDARY);
+	private final JLabel explanation = new JLabel();
+	private String explainedId;
 	private final ThemedButton blockButton = button("Block", "Never suggest this item again. Undo it in settings under Blocked items.", ThemedButton.Style.GHOST);
 	private final ThemedButton goodButton = button("Good", "Rate this suggestion as good", ThemedButton.Style.GHOST);
 	private final ThemedButton badButton = button("Bad", "Rate this suggestion as bad", ThemedButton.Style.GHOST);
@@ -897,10 +900,18 @@ public class FlipperPanel extends PluginPanel
 		stack(text, suggestionProfit, 2);
 		stack(text, suggestionReason, 2);
 		stack(text, marketWarning, 2);
+		stack(text, explanation, 2);
 		stack(text, suggestionError, 2);
 		suggestionCard.add(text, BorderLayout.CENTER);
+		explanation.setVisible(false);
 
 		skipButton.addActionListener(e -> actions.skip());
+		whyButton.addActionListener(e ->
+		{
+			whyButton.setEnabled(false);
+			showExplanation("Asking the market analyst...");
+			actions.explain();
+		});
 		blockButton.addActionListener(e -> actions.block());
 		favouriteButton.addActionListener(e ->
 		{
@@ -920,6 +931,7 @@ public class FlipperPanel extends PluginPanel
 			badButton.setEnabled(false);
 		});
 		actionRow.add(skipButton);
+		actionRow.add(whyButton);
 		actionRow.add(favouriteButton);
 		actionRow.add(blockButton);
 		rateRow.add(goodButton);
@@ -942,6 +954,7 @@ public class FlipperPanel extends PluginPanel
 		suggestionPrice.setForeground(theme.text);
 		suggestionProfit.setForeground(theme.profit);
 		suggestionReason.setForeground(theme.muted);
+		explanation.setForeground(theme.muted);
 		suggestionError.setForeground(theme.loss);
 		marketWarning.setForeground(theme.warning);
 	}
@@ -1313,10 +1326,9 @@ public class FlipperPanel extends PluginPanel
 				}
 				else if (me.accountPremium())
 				{
-					plan = "PREMIUM";
-					accountTitle.setText("Premium");
-					accountDetail.setText(html(me.seats + " game account" + (me.seats == 1 ? "" : "s")
-						+ (me.premiumUntil != null && me.premiumUntil.length() >= 10 ? ", until " + me.premiumUntil.substring(0, 10) : "") + "."));
+					plan = me.pro() ? "PRO" : "PREMIUM";
+					accountTitle.setText(me.pro() ? "Pro" : "Premium");
+					accountDetail.setText(html(me.paidPlanText()));
 				}
 				else if (me.premium)
 				{
@@ -1346,7 +1358,7 @@ public class FlipperPanel extends PluginPanel
 					"Open the Grand Exchange. Your first suggestion appears below."));
 				break;
 		}
-		planPill.set(plan, "PREMIUM".equals(plan) ? theme.accent : theme.muted);
+		planPill.set(plan, "PREMIUM".equals(plan) || "PRO".equals(plan) ? theme.accent : theme.muted);
 		accountError.setText(error == null ? "" : html(error));
 		accountError.setVisible(error != null);
 
@@ -1472,6 +1484,14 @@ public class FlipperPanel extends PluginPanel
 		boolean hasItem = enabled && suggestion != null && suggestion.itemId != null;
 		boolean rateable = hasItem && suggestion.suggestionId != null;
 		skipButton.setVisible(hasItem);
+		// Pro only: the server says whether explanations are on for this account's plan.
+		whyButton.setVisible(hasItem && suggestion.explanations);
+		if (changed || !whyButton.isVisible())
+		{
+			whyButton.setEnabled(true);
+			explanation.setVisible(false);
+			explainedId = id;
+		}
 		blockButton.setVisible(hasItem && suggestion.is(Suggestion.BUY));
 		favouriteButton.setVisible(hasItem && suggestion.is(Suggestion.BUY));
 		goodButton.setVisible(advanced && rateable);
@@ -1484,6 +1504,18 @@ public class FlipperPanel extends PluginPanel
 			goodButton.setEnabled(true);
 			badButton.setEnabled(true);
 		}
+		revalidate();
+	}
+
+	/** The answer to "Why?" for the suggestion on show (Pro). Ignored once the suggestion has changed. */
+	public void showExplanation(String text)
+	{
+		if (!Objects.equals(explainedId, shownSuggestionId))
+		{
+			return;
+		}
+		explanation.setText(html(text == null ? "" : text));
+		explanation.setVisible(text != null && !text.isEmpty());
 		revalidate();
 	}
 

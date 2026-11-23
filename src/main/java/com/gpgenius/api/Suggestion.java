@@ -29,6 +29,20 @@ public class Suggestion
 	public String suggestionId;
 	/** False when the suggestion came from the free item pool. */
 	public boolean premium;
+	/** The account's plan: free, premium or pro (see Tier). Older servers don't send it. */
+	public String tier;
+	@SerializedName("tier_name")
+	public String tierName;
+	/** How often to ask again while nothing changed, in seconds. 0 from older servers. */
+	@SerializedName("refresh_seconds")
+	public int refreshSeconds;
+	/** How old the prices behind this answer may be, in seconds. */
+	@SerializedName("price_max_age_seconds")
+	public int priceMaxAgeSeconds;
+	/** Pro: "why this item?" explanations are available. */
+	public boolean explanations;
+	/** The same answer as a moment ago, handed back because nothing changed. */
+	public boolean reused;
 	/** Buys: what is left of this account's 4-hour buy limit, when the server has seen earlier buys. */
 	@SerializedName("limit_remaining")
 	public Integer limitRemaining;
