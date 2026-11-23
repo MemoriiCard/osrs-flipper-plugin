@@ -1328,7 +1328,7 @@ public class FlipperPanel extends PluginPanel
 				{
 					plan = "FREE";
 					accountTitle.setText("Free plan");
-					accountDetail.setText(html("Suggestions from popular items. Premium unlocks every item and dump alerts."));
+					accountDetail.setText(html(me.freePlanText()));
 				}
 				break;
 			case SIGNED_OUT:
