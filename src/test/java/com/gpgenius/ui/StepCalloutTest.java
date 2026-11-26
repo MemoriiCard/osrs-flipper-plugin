@@ -46,4 +46,23 @@ public class StepCalloutTest
 		assertEquals("Type 30, then press Enter", StepCallout.prompt(false, 30));
 		assertNull(StepCallout.prompt(true, -1));
 	}
+
+	@Test
+	public void upkeepFixesSayWhatComesAfterTheAbort()
+	{
+		Suggestion s = buy();
+		s.action = Suggestion.ABORT;
+		s.slot = 2;
+		s.offerFix = Suggestion.FIX_RAISE;
+		assertEquals("Abort, then rebuy Abyssal whip at 1,250,000 gp", StepCallout.of(NextStep.Step.SLOT, s));
+		assertEquals("+", StepCallout.slotBadge(s));
+		s.offerFix = Suggestion.FIX_LOWER;
+		assertEquals("Abort, then relist Abyssal whip at 1,250,000 gp", StepCallout.of(NextStep.Step.SLOT, s));
+		assertEquals("-", StepCallout.slotBadge(s));
+		s.offerFix = Suggestion.FIX_SELL_FILLED;
+		assertEquals("Abort the rest, then sell 30 x Abyssal whip", StepCallout.of(NextStep.Step.SLOT, s));
+		assertEquals("$", StepCallout.slotBadge(s));
+		s.offerFix = null;
+		assertEquals("X", StepCallout.slotBadge(s));
+	}
 }

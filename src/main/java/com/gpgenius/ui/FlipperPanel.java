@@ -88,6 +88,9 @@ public class FlipperPanel extends PluginPanel
 	private final JPanel actionRow = row();
 	private final JPanel rateRow = row();
 	private String suggestionAction;
+	/** The pill's word and colour: the action, or an offer-upkeep fix such as RAISE. */
+	private String pillText = "";
+	private String pillColor;
 
 	private final ThemedButton favouriteButton = button("Favourite", "Prefer this item when it's a good flip. Undo it in settings under Favourite items.", ThemedButton.Style.GHOST);
 
@@ -949,7 +952,7 @@ public class FlipperPanel extends PluginPanel
 		Color color = suggestionAction == null ? theme.muted : theme.action(suggestionAction);
 		suggestionCard.setColors(theme.surface, theme.border);
 		suggestionCard.setStripe(suggestionAction == null ? null : color);
-		actionPill.set(label(suggestionAction), color);
+		actionPill.set(pillText, pillColor == null ? theme.muted : theme.action(pillColor));
 		suggestionItem.setForeground(theme.text);
 		suggestionPrice.setForeground(theme.text);
 		suggestionProfit.setForeground(theme.profit);
@@ -1444,9 +1447,10 @@ public class FlipperPanel extends PluginPanel
 		{
 			action = suggestion.itemId == null ? Suggestion.WAIT : suggestion.action;
 			item = suggestion.is(Suggestion.WAIT) || suggestion.name == null ? "Nothing to do right now" : suggestion.name;
-			if ((suggestion.is(Suggestion.BUY) || suggestion.is(Suggestion.SELL)) && suggestion.price != null)
+			if ((suggestion.is(Suggestion.BUY) || suggestion.is(Suggestion.SELL) || suggestion.fix() != null)
+				&& suggestion.price != null && suggestion.quantity != null)
 			{
-				price = String.format("%,d x %s gp", suggestion.quantity == null ? 0 : suggestion.quantity,
+				price = String.format("%s%,d x %s gp", suggestion.fix() == null ? "" : "New: ", suggestion.quantity,
 					QuantityFormatter.formatNumber(suggestion.price));
 			}
 			if (suggestion.expectedProfit != null && suggestion.expectedProfit > 0)
@@ -1465,7 +1469,10 @@ public class FlipperPanel extends PluginPanel
 			}
 		}
 		suggestionAction = action;
-		actionPill.set(label(action), action == null ? theme.muted : theme.action(action));
+		boolean fixed = suggestion != null && enabled && suggestion.fix() != null;
+		pillText = fixed ? suggestion.pillLabel() : label(action);
+		pillColor = fixed ? suggestion.colorAction() : action;
+		actionPill.set(pillText, pillColor == null ? theme.muted : theme.action(pillColor));
 		suggestionItem.setText(html(item));
 		suggestionPrice.setText(price);
 		suggestionPrice.setVisible(!price.isEmpty());

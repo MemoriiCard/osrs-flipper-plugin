@@ -14,6 +14,11 @@ public class Suggestion
 	public static final String ABORT = "abort";
 	public static final String WAIT = "wait";
 
+	/** offer_fix values: change the offer's price so it fills, or cancel the rest of a buy and sell what bought. */
+	public static final String FIX_RAISE = "raise";
+	public static final String FIX_LOWER = "lower";
+	public static final String FIX_SELL_FILLED = "sell_filled";
+
 	public String action;
 	public String reason;
 	@SerializedName("item_id")
@@ -61,6 +66,12 @@ public class Suggestion
 	public List<Choice> choices = new ArrayList<>();
 	/** Items held back from sale until their price recovers. */
 	public List<Hold> holds = new ArrayList<>();
+	/**
+	 * Aborts from offer upkeep: raise or lower (price and quantity are the new offer) or sell_filled
+	 * (cancel the rest and sell quantity). Null for a plain abort and from older servers.
+	 */
+	@SerializedName("offer_fix")
+	public String offerFix;
 
 	/** One way to handle a loss. The player still makes every GE click themselves. */
 	public static class Choice
@@ -141,6 +152,85 @@ public class Suggestion
 	public boolean is(String type)
 	{
 		return type.equals(action);
+	}
+
+	/** This abort's offer-upkeep fix (raise, lower or sell_filled), or null for none. */
+	public String fix()
+	{
+		if (!is(ABORT) || offerFix == null)
+		{
+			return null;
+		}
+		switch (offerFix)
+		{
+			case FIX_RAISE:
+			case FIX_LOWER:
+				return price == null ? null : offerFix;
+			case FIX_SELL_FILLED:
+				return offerFix;
+			default:
+				return null;
+		}
+	}
+
+	/** The word on the panel's action pill: RAISE, LOWER, SELL PART, or the action itself. */
+	public String pillLabel()
+	{
+		String fix = fix();
+		if (FIX_RAISE.equals(fix))
+		{
+			return "RAISE";
+		}
+		if (FIX_LOWER.equals(fix))
+		{
+			return "LOWER";
+		}
+		if (FIX_SELL_FILLED.equals(fix))
+		{
+			return "SELL PART";
+		}
+		return action == null ? "" : action.toUpperCase(java.util.Locale.ROOT);
+	}
+
+	/** The action whose colour the pill and highlight use: a fix that buys or sells reads as one. */
+	public String colorAction()
+	{
+		String fix = fix();
+		if (FIX_RAISE.equals(fix))
+		{
+			return BUY;
+		}
+		if (FIX_LOWER.equals(fix) || FIX_SELL_FILLED.equals(fix))
+		{
+			return SELL;
+		}
+		return action;
+	}
+
+	/**
+	 * The buy to place once the player has aborted an offer this suggestion said to raise, so the
+	 * highlights walk them through rebuying at the new price. Null for anything else.
+	 */
+	public Suggestion rebuy()
+	{
+		if (!FIX_RAISE.equals(fix()) || itemId == null || quantity == null || quantity <= 0)
+		{
+			return null;
+		}
+		Suggestion s = new Suggestion();
+		s.action = BUY;
+		s.itemId = itemId;
+		s.name = name;
+		s.price = price;
+		s.quantity = quantity;
+		s.expectedProfit = expectedProfit;
+		s.premium = premium;
+		s.tier = tier;
+		s.tierName = tierName;
+		s.refreshSeconds = refreshSeconds;
+		s.priceMaxAgeSeconds = priceMaxAgeSeconds;
+		s.reason = String.format("Rebuy %s at the raised price: %,d x %,d gp.", name == null ? "the item" : name, quantity, price);
+		return s;
 	}
 
 	/**

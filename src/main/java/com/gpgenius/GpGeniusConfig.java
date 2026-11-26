@@ -414,6 +414,18 @@ public interface GpGeniusConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "offerUpkeep",
+		name = "Offer upkeep tips",
+		description = "When an offer is slow, suggest the better use of its slot: raise a buy so it fills, abort a mostly filled buy and sell what it bought, or lower a sell to what buyers pay (never below break-even). You still do every step yourself.",
+		section = suggestionSection,
+		position = 10
+	)
+	default boolean offerUpkeep()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "coinCap",
 		name = "Coins to flip with",
 		description = "The most coins suggestions may use, counting open buy offers. 0 uses all the coins in your inventory.",
