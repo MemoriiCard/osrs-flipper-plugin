@@ -5,6 +5,7 @@ import com.gpgenius.api.Profiles;
 import com.gpgenius.notify.SoundCue;
 import com.gpgenius.ui.HighlightPalette;
 import com.gpgenius.ui.HighlightStyle;
+import com.gpgenius.ui.PanelLayout;
 import com.gpgenius.ui.TextScale;
 import com.gpgenius.ui.Theme;
 import java.util.ArrayList;
@@ -28,7 +29,7 @@ public final class LookSettings
 		"theme", "compactLayout", "sounds",
 		"highlightPalette", "highlightThickness", "highlightPadding", "highlightOpacity", "highlightFill",
 		"highlightPulse", "highlightLabel", "highlightPrompt", "highlightSpotlight",
-		"textSize", "highContrast", "soundCues", "soundCueVolume"));
+		"textSize", "highContrast", "soundCues", "soundCueVolume", "panelLayout", "panelParts"));
 
 	private LookSettings()
 	{
@@ -62,6 +63,16 @@ public final class LookSettings
 		}
 		look.soundCues = cues;
 		look.soundCueVolume = config.soundCueVolume();
+		look.panelLayout = config.panelLayout() == null ? null : config.panelLayout().name();
+		List<String> parts = new ArrayList<>();
+		if (config.panelParts() != null)
+		{
+			for (PanelLayout.Part p : config.panelParts())
+			{
+				parts.add(p.name());
+			}
+		}
+		look.panelParts = parts;
 		return look;
 	}
 
@@ -105,6 +116,20 @@ public final class LookSettings
 			out.put("soundCues", cues);
 		}
 		putIfNotNull(out, "soundCueVolume", clamp(look.soundCueVolume, 1, 100));
+		putIfNotNull(out, "panelLayout", named(PanelLayout.class, look.panelLayout));
+		if (look.panelParts != null)
+		{
+			Set<PanelLayout.Part> parts = EnumSet.noneOf(PanelLayout.Part.class);
+			for (String name : look.panelParts)
+			{
+				PanelLayout.Part p = named(PanelLayout.Part.class, name);
+				if (p != null)
+				{
+					parts.add(p);
+				}
+			}
+			out.put("panelParts", parts);
+		}
 		return out;
 	}
 

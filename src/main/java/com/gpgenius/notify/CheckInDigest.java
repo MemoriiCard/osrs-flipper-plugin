@@ -25,6 +25,10 @@ public class CheckInDigest
 	private boolean hasProfit;
 	private final Set<String> reprice = new LinkedHashSet<>();
 	private String nextStep;
+	/** Sell-now cues and dump alerts waiting for this reminder, in the order they came. */
+	private final Set<String> notes = new LinkedHashSet<>();
+	/** An urgent nudge was let through (NudgeGate): send without waiting for the window. */
+	private boolean early;
 	private long firstEventMillis;
 	private long lastSentMillis;
 
@@ -93,6 +97,32 @@ public class CheckInDigest
 		lastHeadline = headline;
 	}
 
+	/**
+	 * A line for the next reminder, such as a sell-now cue or a dump alert, already deduplicated by
+	 * NudgeGate.
+	 *
+	 * @param early send the reminder without waiting for the rest of the check-in window
+	 */
+	public void note(String line, boolean early, long nowMillis)
+	{
+		if (line == null || line.isEmpty())
+		{
+			return;
+		}
+		notes.add(line);
+		this.early |= early;
+		touch(nowMillis);
+	}
+
+	/** Something already waiting is urgent (NudgeGate let it through): send without waiting for the window. */
+	public void hurry()
+	{
+		if (!isEmpty())
+		{
+			early = true;
+		}
+	}
+
 	/** The player is at the GE and can see everything: nothing to remind them of. */
 	public void seen(long nowMillis)
 	{
@@ -110,7 +140,8 @@ public class CheckInDigest
 
 	public boolean isEmpty()
 	{
-		return buysDone == 0 && sellsDone == 0 && !hasProfit && reprice.isEmpty() && nextStep == null;
+		return buysDone == 0 && sellsDone == 0 && !hasProfit && reprice.isEmpty() && nextStep == null
+			&& notes.isEmpty();
 	}
 
 	/**
@@ -121,7 +152,7 @@ public class CheckInDigest
 	{
 		return !isEmpty() && !quiet
 			&& nowMillis - firstEventMillis >= SETTLE_MILLIS
-			&& nowMillis - lastSentMillis >= windowMillis;
+			&& (early || nowMillis - lastSentMillis >= windowMillis);
 	}
 
 	/** The reminder text, and starts a new window. */
@@ -152,6 +183,17 @@ public class CheckInDigest
 		if (!reprice.isEmpty())
 		{
 			out.append(count(reprice.size(), "offer")).append(" to reprice (").append(names()).append("). ");
+		}
+		int shown = 0;
+		for (String note : notes)
+		{
+			if (shown == MAX_NAMES)
+			{
+				out.append("+").append(notes.size() - MAX_NAMES).append(" more in the panel. ");
+				break;
+			}
+			out.append(note.endsWith(".") ? note : note + ".").append(' ');
+			shown++;
 		}
 		if (nextStep != null)
 		{
@@ -203,6 +245,8 @@ public class CheckInDigest
 		hasProfit = false;
 		reprice.clear();
 		nextStep = null;
+		notes.clear();
+		early = false;
 		firstEventMillis = 0;
 	}
 

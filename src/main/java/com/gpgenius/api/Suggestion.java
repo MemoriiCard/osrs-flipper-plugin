@@ -43,6 +43,70 @@ public class Suggestion
 	public boolean explanations;
 	/** The same answer as a moment ago, handed back because nothing changed. */
 	public boolean reused;
+	/** Held items worth selling now (newest servers). Only urgent ones may notify outside the check-in. */
+	@SerializedName("sell_cues")
+	public List<SellCue> sellCues = new ArrayList<>();
+	/** This character's 4-hour buy limits with buys in their current window, for the panel's timers. */
+	@SerializedName("buy_limits")
+	public List<BuyLimit> buyLimits = new ArrayList<>();
+
+	/** A "sell now" cue: the plugin outlines the item in the inventory. The player still sells it by hand. */
+	public static class SellCue
+	{
+		public static final String INSTANT = "instant";
+		public static final String DROPPING = "dropping";
+		public static final String TARGET = "target";
+
+		@SerializedName("item_id")
+		public int itemId;
+		public String name;
+		/** instant, dropping or target. */
+		public String kind;
+		public long price;
+		public boolean urgent;
+		public String message;
+
+		/** The short label on the inventory outline, such as "Sell now at 1,610,000". */
+		public String label()
+		{
+			if (DROPPING.equals(kind))
+			{
+				return String.format("Falling: sell at %,d", price);
+			}
+			if (TARGET.equals(kind))
+			{
+				return String.format("Target reached: list at %,d", price);
+			}
+			return String.format("Sell now at %,d", price);
+		}
+
+		/** The line in the check-in reminder. */
+		public String reminder()
+		{
+			return message != null && !message.isEmpty() ? message : name + ": " + label();
+		}
+
+		/** What makes two cues the same nudge. */
+		public String key()
+		{
+			return "cue:" + kind + ":" + itemId;
+		}
+	}
+
+	/** One item's buy limit window. */
+	public static class BuyLimit
+	{
+		@SerializedName("item_id")
+		public int itemId;
+		public String name;
+		public int bought;
+		public int limit;
+		public int remaining;
+		/** ISO-8601, or null when not known yet. */
+		@SerializedName("resets_at")
+		public String resetsAt;
+		public boolean locked;
+	}
 	/** Buys: what is left of this account's 4-hour buy limit, when the server has seen earlier buys. */
 	@SerializedName("limit_remaining")
 	public Integer limitRemaining;
