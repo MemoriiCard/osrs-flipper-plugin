@@ -776,6 +776,18 @@ public interface GpGeniusConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "itemHistoryLine",
+		name = "My history with the item",
+		description = "Under the suggestion, show your own record with that item: flips, profit, win rate, average margin and hold time. The website's dashboard has the full page.",
+		section = trackingSection,
+		position = 4
+	)
+	default boolean itemHistoryLine()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "highlightPalette",
 		name = "Highlight colours",
 		description = "Match theme, or a palette that stays clear with red-green or blue-yellow colour blindness. Outbid slots are also dashed and aborts get a cross, so colour is never the only signal.",

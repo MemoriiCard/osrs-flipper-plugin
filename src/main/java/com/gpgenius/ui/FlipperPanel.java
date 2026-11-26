@@ -74,6 +74,8 @@ public class FlipperPanel extends PluginPanel
 	private final JLabel suggestionPrice = new JLabel();
 	private final JLabel suggestionProfit = new JLabel();
 	private final JLabel suggestionReason = new JLabel();
+	/** The player's own record with the item on show. */
+	private final JLabel itemHistoryLine = new JLabel();
 	private final JLabel suggestionError = new JLabel();
 	private final JLabel marketWarning = new JLabel();
 	private final ThemedButton skipButton = button("Skip", "Get a different suggestion", ThemedButton.Style.SECONDARY);
@@ -902,11 +904,13 @@ public class FlipperPanel extends PluginPanel
 		stack(text, suggestionPrice, 2);
 		stack(text, suggestionProfit, 2);
 		stack(text, suggestionReason, 2);
+		stack(text, itemHistoryLine, 2);
 		stack(text, marketWarning, 2);
 		stack(text, explanation, 2);
 		stack(text, suggestionError, 2);
 		suggestionCard.add(text, BorderLayout.CENTER);
 		explanation.setVisible(false);
+		itemHistoryLine.setVisible(false);
 
 		skipButton.addActionListener(e -> actions.skip());
 		whyButton.addActionListener(e ->
@@ -957,6 +961,7 @@ public class FlipperPanel extends PluginPanel
 		suggestionPrice.setForeground(theme.text);
 		suggestionProfit.setForeground(theme.profit);
 		suggestionReason.setForeground(theme.muted);
+		itemHistoryLine.setForeground(theme.muted);
 		explanation.setForeground(theme.muted);
 		suggestionError.setForeground(theme.loss);
 		marketWarning.setForeground(theme.warning);
@@ -1423,6 +1428,14 @@ public class FlipperPanel extends PluginPanel
 	 * @param enabled whether suggestions are turned on in settings
 	 * @param error   why the latest refresh failed, or null
 	 */
+	/** The "You: 12 flips, +3.4M ..." line under the suggestion, or null to hide it. */
+	public void showItemHistory(String line)
+	{
+		boolean show = line != null && !line.isEmpty();
+		itemHistoryLine.setText(show ? html(line) : "");
+		itemHistoryLine.setVisible(show);
+	}
+
 	public void showSuggestion(boolean enabled, Suggestion suggestion, String error)
 	{
 		String id = suggestion == null ? null : suggestion.suggestionId + "|" + suggestion.headline();

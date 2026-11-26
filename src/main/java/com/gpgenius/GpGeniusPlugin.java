@@ -180,6 +180,7 @@ public class GpGeniusPlugin extends Plugin
 	private final SoundCues cues = new SoundCues();
 	private boolean importInFlight;
 	private ChartController chart;
+	private com.gpgenius.history.ItemHistoryController itemHistory;
 	private NavigationButton navButton;
 	private TradeStore store;
 
@@ -232,6 +233,10 @@ public class GpGeniusPlugin extends Plugin
 		suggestions.setOnChange(this::updateSuggestionPanel);
 		chart = new ChartController(api, clientThread::invokeLater);
 		chart.setOnChange(this::updateChartPanel);
+		itemHistory = new com.gpgenius.history.ItemHistoryController((id, done) -> api.itemHistory(id,
+			h -> clientThread.invokeLater(() -> done.accept(h)),
+			message -> clientThread.invokeLater(() -> done.accept(null))));
+		itemHistory.setOnChange(this::updateSuggestionPanel);
 		overlayManager.add(highlightOverlay);
 		hotkeys.setShortcuts(new Shortcuts());
 		keyManager.registerKeyListener(hotkeys);
@@ -351,6 +356,7 @@ public class GpGeniusPlugin extends Plugin
 			prices.want(pricedItems());
 			watchOutbid();
 			chart.tick(config.priceChart() ? chartItem() : null, now);
+			itemHistory.tick(config.itemHistoryLine() ? chartItem() : null, now);
 			if (config.dumpAlerts() && me != null && me.accountPremium() && accountHash != -1)
 			{
 				alerts.poll(accountHash, coins(), config.minProfit(),
@@ -361,6 +367,8 @@ public class GpGeniusPlugin extends Plugin
 		else
 		{
 			chart.tick(null, now);
+			// Signed out or another character: forget the last player's records.
+			itemHistory.clear();
 		}
 		updateGuard();
 		checkIn(now);
@@ -610,9 +618,11 @@ public class GpGeniusPlugin extends Plugin
 			digest.suggestion(current.action, current.name, current.headline(), config.remindReprice(),
 				config.remindNextStep(), System.currentTimeMillis());
 		}
+		final String historyLine = enabled && config.itemHistoryLine() ? itemHistory.line() : null;
 		SwingUtilities.invokeLater(() ->
 		{
 			panel.showSuggestion(enabled, current, error);
+			panel.showItemHistory(historyLine);
 			panel.showPlan(plan);
 			panel.showSlots(slotPlan);
 			panel.showOvernight(overnightAvailable, overnight, overnightHours);
