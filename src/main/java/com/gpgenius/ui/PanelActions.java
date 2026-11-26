@@ -35,6 +35,16 @@ public interface PanelActions
 
 	void dismissAlert(String alertId);
 
+	/** Opens last week's recap on the dashboard. */
+	default void openRecap()
+	{
+	}
+
+	/** Hides the recap card until next week's. */
+	default void hideRecap()
+	{
+	}
+
 	/** Closes an announcement (here and, for signed-in players, everywhere else). */
 	void dismissAnnouncement(String announcementId);
 

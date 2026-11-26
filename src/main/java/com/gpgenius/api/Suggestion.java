@@ -22,6 +22,8 @@ public class Suggestion
 	public Long price;
 	public Integer quantity;
 	public Integer slot;
+	/** With slot roles on: "quick" or "long", the kind of slot this suggestion is for. Null otherwise. */
+	public String role;
 	@SerializedName("expected_profit")
 	public Long expectedProfit;
 	/** Sent back with feedback. */
