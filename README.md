@@ -52,6 +52,9 @@ offer, and tracks your profit.
   default and rate limited.
 - **Optional hotkeys.** Highlights on/off, refresh suggestion, next profile, simple/advanced view and
   compact panel. All unset by default and kept per computer.
+- **Milestones and streaks.** The goal card shows your top profit badge (1M up to 10B), the next one and
+  your streak of profitable days, and a notification says when you reach a new one ("Milestone
+  reached"). Share badges and choose a Discord rank role from the website dashboard.
 - **Price chart.** Day, week and month charts of the item you're setting up or the suggested item.
 - **Your history with the item.** One line under the suggestion with your own record for that item, such
   as "You: 12 flips, +3.4M, 83% wins, 85,000 gp each, avg 41 min". The website dashboard has the full

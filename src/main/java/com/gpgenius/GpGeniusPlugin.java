@@ -181,6 +181,7 @@ public class GpGeniusPlugin extends Plugin
 	private boolean importInFlight;
 	private ChartController chart;
 	private com.gpgenius.history.ItemHistoryController itemHistory;
+	private final com.gpgenius.notify.MilestoneWatch milestones = new com.gpgenius.notify.MilestoneWatch();
 	private NavigationButton navButton;
 	private TradeStore store;
 
@@ -618,7 +619,7 @@ public class GpGeniusPlugin extends Plugin
 			digest.suggestion(current.action, current.name, current.headline(), config.remindReprice(),
 				config.remindNextStep(), System.currentTimeMillis());
 		}
-		final String historyLine = enabled && config.itemHistoryLine() ? itemHistory.line() : null;
+		final String historyLine = enabled && itemHistory != null && config.itemHistoryLine() ? itemHistory.line() : null;
 		SwingUtilities.invokeLater(() ->
 		{
 			panel.showSuggestion(enabled, current, error);
@@ -938,6 +939,19 @@ public class GpGeniusPlugin extends Plugin
 	/** Client thread. */
 	private void showProgress(Progress result, String error)
 	{
+		if (result == null)
+		{
+			milestones.reset();
+		}
+		else if (error == null)
+		{
+			String badge = milestones.update(result.milestones);
+			Notification n = config.milestoneNotification();
+			if (badge != null && n != null && n.isEnabled())
+			{
+				notifier.notify(sounds(n), "Milestone reached: " + badge + "! Share it from your GP Genius dashboard.");
+			}
+		}
 		progress = result;
 		SwingUtilities.invokeLater(() -> panel.showProgress(result, error));
 	}

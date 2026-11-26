@@ -174,6 +174,8 @@ public class FlipperPanel extends PluginPanel
 	private final JLabel goalProgress = new JLabel();
 	private final JLabel goalAdvice = new JLabel();
 	private final JLabel goalError = new JLabel();
+	/** Milestones and streaks: the top profit badge, the next one and the streak. */
+	private final JLabel milestoneLine = new JLabel();
 	private final ThemedButton setGoalButton = button("Set a goal", "Pick a target and a date. Suggestions and check-in reminders can adapt to keep you on pace.", ThemedButton.Style.SECONDARY);
 	private final ThemedButton clearGoalButton = button("Clear", "Stop tracking this goal", ThemedButton.Style.GHOST);
 
@@ -1009,6 +1011,7 @@ public class FlipperPanel extends PluginPanel
 		goalProgress.setFont(FontManager.getRunescapeSmallFont());
 		goalAdvice.setFont(FontManager.getRunescapeSmallFont());
 		goalError.setFont(FontManager.getRunescapeSmallFont());
+		milestoneLine.setFont(FontManager.getRunescapeSmallFont());
 		JPanel head = new JPanel(new BorderLayout(4, 0));
 		head.setOpaque(false);
 		head.add(goalTitle, BorderLayout.CENTER);
@@ -1018,6 +1021,7 @@ public class FlipperPanel extends PluginPanel
 		stack(text, goalBar, 6);
 		stack(text, goalProgress, 4);
 		stack(text, goalAdvice, 4);
+		stack(text, milestoneLine, 4);
 		stack(text, goalError, 4);
 		goalCard.add(text, BorderLayout.CENTER);
 		setGoalButton.addActionListener(e -> askGoal(actions));
@@ -1040,6 +1044,7 @@ public class FlipperPanel extends PluginPanel
 			goalTitle.setForeground(theme.text);
 			goalProgress.setForeground(theme.muted);
 			goalAdvice.setForeground(theme.text);
+			milestoneLine.setForeground(theme.accent);
 			goalError.setForeground(theme.loss);
 		});
 		goalCard.setVisible(false);
@@ -1273,6 +1278,9 @@ public class FlipperPanel extends PluginPanel
 			setGoalButton.setText(g.isLive() ? "Change" : "New goal");
 			clearGoalButton.setVisible(true);
 		}
+		String milestoneText = signedIn && progress.milestones != null ? progress.milestones.line() : "";
+		milestoneLine.setText(milestoneText.isEmpty() ? "" : html(milestoneText));
+		milestoneLine.setVisible(!milestoneText.isEmpty());
 		goalError.setText(progressError == null ? "" : html(progressError));
 		goalError.setVisible(progressError != null);
 		goalCard.setBorder(new EmptyBorder(10, 12, 10, 10));

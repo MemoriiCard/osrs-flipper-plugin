@@ -511,6 +511,18 @@ public interface GpGeniusConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "milestoneNotification",
+		name = "Milestone reached",
+		description = "A notification when you reach a new profit milestone (1M up to 10B). Share it from the website dashboard. Hide milestones there if you'd rather not see them.",
+		section = reminderSection,
+		position = 9
+	)
+	default Notification milestoneNotification()
+	{
+		return Notification.ON;
+	}
+
+	@ConfigItem(
 		keyName = "remindCompleted",
 		name = "Completed offers",
 		description = "Include buys and sells that finished.",
