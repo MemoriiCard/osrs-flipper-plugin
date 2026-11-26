@@ -53,6 +53,7 @@ public final class TradeSync
 			trade.total = t.totalCoins;
 			trade.timestampMs = t.timestampMillis;
 			trade.imported = t.imported;
+			trade.slot = t.imported || t.slot < 0 || t.slot > 7 ? null : t.slot;
 			upload.trades.add(trade);
 		}
 		return upload;

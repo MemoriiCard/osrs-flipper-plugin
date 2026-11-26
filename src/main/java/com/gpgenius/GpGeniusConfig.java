@@ -247,6 +247,28 @@ public interface GpGeniusConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "showEfficiency",
+		name = "GP per hour card",
+		description = "Show GP per hour overall, this session, recently and by GE slot in the panel. Pick the figures and their time windows with the card's Choose button.",
+		position = -1
+	)
+	default boolean showEfficiency()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "efficiencyIdle",
+		name = "Idle slots and unused cash",
+		description = "On the GP per hour card, show how long each GE slot sat idle since you logged in and how many of your coins no offer is using.",
+		position = -1
+	)
+	default boolean efficiencyIdle()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "sounds",
 		name = "Notification sounds",
 		description = "Turn off to keep reminders and alerts silent. Saved with your profile.",
