@@ -10,6 +10,7 @@ import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import com.gpgenius.notify.SoundCue;
+import com.gpgenius.ui.PanelLayout;
 import com.gpgenius.ui.HighlightPalette;
 import com.gpgenius.ui.TextScale;
 import com.gpgenius.ui.Theme;
@@ -244,6 +245,53 @@ public interface GpGeniusConfig extends Config
 	default boolean compactLayout()
 	{
 		return false;
+	}
+
+	@ConfigItem(
+		keyName = "panelLayout",
+		name = "Panel layout",
+		description = "Detailed shows everything. Compact drops the price chart and flip list. Minimal is just the next step and your profit. Custom shows the parts you pick below. Compact panel, when on, means Compact.",
+		position = -1
+	)
+	default PanelLayout panelLayout()
+	{
+		return PanelLayout.DETAILED;
+	}
+
+	@ConfigItem(
+		keyName = "panelParts",
+		name = "Panel parts (Custom)",
+		description = "With the Custom layout: which cards and columns the panel shows. The next step itself always shows.",
+		position = -1
+	)
+	default Set<PanelLayout.Part> panelParts()
+	{
+		return EnumSet.of(PanelLayout.Part.PRICE, PanelLayout.Part.EST_PROFIT, PanelLayout.Part.DETAILS,
+			PanelLayout.Part.LIMITS, PanelLayout.Part.PROFIT, PanelLayout.Part.FLIPS, PanelLayout.Part.FLIP_QUANTITY);
+	}
+
+	@ConfigItem(
+		keyName = "sellCues",
+		name = "Sell-now highlight",
+		description = "Outline items in your inventory that are worth selling now: the price reached your target, buyers are paying it right now, or the margin is about to drop. You still sell them yourself.",
+		section = offerSection,
+		position = 20
+	)
+	default boolean sellCues()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "urgentNudges",
+		name = "Urgent reminders early",
+		description = "Everything else waits for your check-in reminder. When on, a real chance (buyers paying your target now, a dump, an offer that needs updating) may send that reminder early: at most twice per check-in and 5 minutes apart, never in quiet hours.",
+		section = reminderSection,
+		position = 20
+	)
+	default boolean urgentNudges()
+	{
+		return true;
 	}
 
 	@ConfigItem(

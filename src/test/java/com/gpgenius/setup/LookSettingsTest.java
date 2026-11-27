@@ -84,6 +84,8 @@ public class LookSettingsTest
 		assertEquals(TextScale.Size.LARGE, settings.get("textSize"));
 		assertEquals(true, settings.get("highContrast"));
 		assertEquals(EnumSet.of(SoundCue.OFFER_DONE, SoundCue.OUTBID), settings.get("soundCues"));
+		assertEquals(com.gpgenius.ui.PanelLayout.DETAILED, settings.get("panelLayout"));
+		assertTrue(((Set<?>) settings.get("panelParts")).contains(com.gpgenius.ui.PanelLayout.Part.LIMITS));
 		// Every key written back is one that saves the profile when edited.
 		assertTrue(LookSettings.KEYS.containsAll(settings.keySet()));
 		assertEquals(LookSettings.KEYS.size(), settings.size());
@@ -109,6 +111,8 @@ public class LookSettingsTest
 		assertFalse(settings.containsKey("highlightPalette"));
 		assertFalse(settings.containsKey("textSize"));
 		assertFalse(settings.containsKey("soundCues"));
+		assertFalse(settings.containsKey("panelLayout"));
+		assertFalse(settings.containsKey("panelParts"));
 	}
 
 	@Test

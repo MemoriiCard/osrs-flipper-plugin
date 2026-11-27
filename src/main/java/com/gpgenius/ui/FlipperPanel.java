@@ -112,6 +112,14 @@ public class FlipperPanel extends PluginPanel
 	/** True while the profile menu is being refilled, so that isn't taken as the player switching. */
 	private boolean fillingProfiles;
 	private boolean compact;
+	/** The layout preset and the parts ("columns") it shows. */
+	private PanelLayout.View view = PanelLayout.View.DEFAULT;
+	private final LimitCard limitCard = new LimitCard();
+
+	{
+		limitCard.setFonts(FontManager.getRunescapeFont(), FontManager.getRunescapeSmallFont());
+		painters.add(() -> limitCard.setTheme(theme));
+	}
 
 	private final RoundedPanel tourCard = card();
 	private final JLabel tourTitle = new JLabel("How it works");
@@ -249,6 +257,8 @@ public class FlipperPanel extends PluginPanel
 		content.add(overnightCard(actions));
 		content.add(slotsCard());
 		content.add(suggestionCard(actions));
+		content.add(Box.createVerticalStrut(8));
+		content.add(limitCard);
 		content.add(Box.createVerticalStrut(8));
 		content.add(alertList);
 		content.add(conversionList);
@@ -1231,7 +1241,7 @@ public class FlipperPanel extends PluginPanel
 			String tier = shown.suggestedStackLabel;
 			stackLine.setText(tier == null ? "" : html("Suggested minimum cash stack: " + tier
 				+ ". Keep at least this much flipping to hold on to the gains you've reached."));
-			stackLine.setVisible(tier != null && !compact);
+			stackLine.setVisible(tier != null && view.shows(PanelLayout.Part.STACK));
 		}
 		resetSessionButton.setVisible(loggedIn);
 		profitCard.setBorder(new EmptyBorder(10, 12, 10, 10));
@@ -1262,7 +1272,7 @@ public class FlipperPanel extends PluginPanel
 	{
 		boolean signedIn = progress != null;
 		Progress.Goal g = signedIn ? progress.goal : null;
-		goalCard.setVisible(signedIn && !compact || g != null);
+		goalCard.setVisible(view.shows(PanelLayout.Part.GOAL) && (signedIn && !compact || g != null));
 		if (g == null)
 		{
 			goalTitle.setText(html("No goal set"));
@@ -1298,7 +1308,7 @@ public class FlipperPanel extends PluginPanel
 	/** Shows the chart, or hides the card when there is no item to chart. */
 	public void showChart(PriceHistory history, String period, String error)
 	{
-		chartCard.setVisible(!compact && (history != null || error != null));
+		chartCard.setVisible(view.shows(PanelLayout.Part.CHART) && (history != null || error != null));
 		chartTitle.setText(history == null || history.name == null ? "Price history" : html(history.name, 110));
 		chart.setHistory(history);
 		chartError.setText(error == null ? "" : html(error));
@@ -1482,7 +1492,7 @@ public class FlipperPanel extends PluginPanel
 			{
 				reason = suggestion.reason;
 			}
-			for (String line : suggestion.details())
+			for (String line : view.shows(PanelLayout.Part.DETAILS) ? suggestion.details() : Collections.<String>emptyList())
 			{
 				reason = reason.isEmpty() ? line : reason + "\n" + line;
 			}
@@ -1491,9 +1501,9 @@ public class FlipperPanel extends PluginPanel
 		actionPill.set(label(action), action == null ? theme.muted : theme.action(action));
 		suggestionItem.setText(html(item));
 		suggestionPrice.setText(price);
-		suggestionPrice.setVisible(!price.isEmpty());
+		suggestionPrice.setVisible(!price.isEmpty() && view.shows(PanelLayout.Part.PRICE));
 		suggestionProfit.setText(profit);
-		suggestionProfit.setVisible(!profit.isEmpty());
+		suggestionProfit.setVisible(!profit.isEmpty() && view.shows(PanelLayout.Part.EST_PROFIT));
 		suggestionReason.setText(html(reason));
 		suggestionReason.setVisible(!reason.isEmpty());
 		suggestionError.setText(error == null ? "" : html(error));
@@ -1542,6 +1552,41 @@ public class FlipperPanel extends PluginPanel
 		revalidate();
 	}
 
+	/**
+	 * The panel layout: a preset (Detailed, Compact, Minimal) or the player's own pick of parts.
+	 * Replaces the older on/off compact switch, which now means the Compact preset.
+	 */
+	public void setView(PanelLayout.View view)
+	{
+		if (view == null || view.equals(this.view))
+		{
+			return;
+		}
+		this.view = view;
+		compact = view.trimmed();
+		chartCard.setVisible(false);
+		profitCard.setVisible(view.shows(PanelLayout.Part.PROFIT));
+		limitCard.setAllowed(view.shows(PanelLayout.Part.LIMITS));
+		showAlerts(alerts);
+		update(loggedIn, sessionProfit, allTimeProfit, flips);
+		renderGoal();
+		renderProfit();
+		revalidate();
+		repaint();
+	}
+
+	/** Buy limit timers from the latest suggestion; empty hides the card. */
+	public void showLimits(List<Suggestion.BuyLimit> limits)
+	{
+		limitCard.show(limits);
+	}
+
+	/** Stops the limit countdown, for shutdown. */
+	public void stopTimers()
+	{
+		limitCard.stop();
+	}
+
 	/** Dump alerts for premium accounts; an empty list hides the section. */
 	public void showAlerts(List<DumpAlert> alerts)
 	{
@@ -1584,7 +1629,7 @@ public class FlipperPanel extends PluginPanel
 			card.add(buttons, BorderLayout.SOUTH);
 			stack(alertList, card, 6);
 		}
-		alertList.setVisible(!alerts.isEmpty());
+		alertList.setVisible(!alerts.isEmpty() && view.shows(PanelLayout.Part.ALERTS));
 		alertList.setBorder(new EmptyBorder(0, 0, alerts.isEmpty() ? 0 : 8, 0));
 		alertList.revalidate();
 		alertList.repaint();
@@ -1789,9 +1834,10 @@ public class FlipperPanel extends PluginPanel
 			shown++;
 		}
 		renderProfit();
-		importRow.setVisible(loggedIn && !compact);
-		flipsHeading.setVisible(!compact);
-		flipList.setVisible(!compact);
+		boolean showFlips = view.shows(PanelLayout.Part.FLIPS);
+		importRow.setVisible(loggedIn && showFlips);
+		flipsHeading.setVisible(showFlips);
+		flipList.setVisible(showFlips);
 		flipList.revalidate();
 		flipList.repaint();
 	}
@@ -1804,7 +1850,8 @@ public class FlipperPanel extends PluginPanel
 		row.setBorder(new EmptyBorder(6, 10, 6, 8));
 		row.setAlignmentX(LEFT_ALIGNMENT);
 
-		JLabel name = new JLabel(html(flip.itemName + " x" + QuantityFormatter.formatNumber(flip.quantity), 105));
+		String quantity = view.shows(PanelLayout.Part.FLIP_QUANTITY) ? " x" + QuantityFormatter.formatNumber(flip.quantity) : "";
+		JLabel name = new JLabel(html(flip.itemName + quantity, 105));
 		name.setForeground(theme.text);
 		JLabel profit = new JLabel(signedGp(flip.profit));
 		profit.setFont(FontManager.getRunescapeBoldFont());
@@ -1812,7 +1859,7 @@ public class FlipperPanel extends PluginPanel
 
 		JPanel left = column();
 		stack(left, name, 2);
-		if (advanced)
+		if (view.shows(PanelLayout.Part.FLIP_PRICES) && (advanced || view.layout == PanelLayout.CUSTOM))
 		{
 			JLabel detail = new JLabel(QuantityFormatter.quantityToStackSize(flip.buyPrice) + " → "
 				+ QuantityFormatter.quantityToStackSize(flip.sellPrice));

@@ -141,6 +141,9 @@ public class GpGeniusPlugin extends Plugin
 	private HighlightOverlay highlightOverlay;
 
 	@Inject
+	private com.gpgenius.ui.SellCueOverlay sellCueOverlay;
+
+	@Inject
 	private OfferHotkeys hotkeys;
 
 	@Inject
@@ -184,6 +187,10 @@ public class GpGeniusPlugin extends Plugin
 	private final CheckInDigest digest = new CheckInDigest();
 	/** Client thread only. When the optional sound cues play. */
 	private final SoundCues cues = new SoundCues();
+	/** Client thread only. Which nudges are said, batched or allowed to bring the reminder forward. */
+	private final com.gpgenius.notify.NudgeGate nudges = new com.gpgenius.notify.NudgeGate();
+	/** The buy limit list last sent to the panel, so it is only rebuilt when it changes. */
+	private List<Suggestion.BuyLimit> shownLimits;
 	private boolean importInFlight;
 	private ChartController chart;
 	private NavigationButton navButton;
@@ -244,6 +251,8 @@ public class GpGeniusPlugin extends Plugin
 		chart = new ChartController(api, clientThread::invokeLater);
 		chart.setOnChange(this::updateChartPanel);
 		overlayManager.add(highlightOverlay);
+		overlayManager.add(sellCueOverlay);
+		SwingUtilities.invokeLater(() -> panel.setView(layoutView()));
 		hotkeys.setShortcuts(new Shortcuts());
 		keyManager.registerKeyListener(hotkeys);
 
@@ -273,6 +282,8 @@ public class GpGeniusPlugin extends Plugin
 			}
 		});
 		overlayManager.remove(highlightOverlay);
+		overlayManager.remove(sellCueOverlay);
+		SwingUtilities.invokeLater(panel::stopTimers);
 		keyManager.unregisterKeyListener(hotkeys);
 		hotkeys.setShortcuts(null);
 		suggestions.setOnChange(() -> { });
@@ -311,6 +322,7 @@ public class GpGeniusPlugin extends Plugin
 				me = null;
 				suggestions.reset();
 				cues.reset();
+				nudges.reset();
 				alerts.reset();
 				watchlist.reset();
 				conversions.reset();
@@ -481,9 +493,10 @@ public class GpGeniusPlugin extends Plugin
 			{
 				SwingUtilities.invokeLater(() -> panel.setTextScale(config.textSize().scale));
 			}
-			if ("compactLayout".equals(event.getKey()))
+			if ("compactLayout".equals(event.getKey()) || "panelLayout".equals(event.getKey())
+				|| "panelParts".equals(event.getKey()))
 			{
-				SwingUtilities.invokeLater(() -> panel.setCompact(config.compactLayout()));
+				SwingUtilities.invokeLater(() -> panel.setView(layoutView()));
 			}
 			profiles.settingChanged(event.getKey(), System.currentTimeMillis());
 			if ("setupDone".equals(event.getKey()) && !config.setupDone())
@@ -740,6 +753,55 @@ public class GpGeniusPlugin extends Plugin
 		}
 	}
 
+	/** The panel layout preset and parts from the settings (the Compact switch still means Compact). */
+	private com.gpgenius.ui.PanelLayout.View layoutView()
+	{
+		return com.gpgenius.ui.PanelLayout.view(config.panelLayout(), config.compactLayout(), config.panelParts());
+	}
+
+	/**
+	 * Client thread, every tick. Feeds the panel's buy limit timers and puts sell-now cues and offers
+	 * that need updating through the one nudge rule (NudgeGate): batched into the check-in reminder,
+	 * with only urgent ones allowed to bring it forward. Nothing is said while the player is at the GE,
+	 * where the highlights already show it.
+	 */
+	private void nudge(long now, boolean atGe, boolean quiet)
+	{
+		Suggestion current = config.suggestionsEnabled() ? suggestions.getCurrent() : null;
+		List<Suggestion.BuyLimit> limits = current == null ? null : current.buyLimits;
+		if (limits != shownLimits)
+		{
+			shownLimits = limits;
+			final List<Suggestion.BuyLimit> list = limits == null ? Collections.emptyList() : new ArrayList<>(limits);
+			SwingUtilities.invokeLater(() -> panel.showLimits(list));
+		}
+		if (current == null || atGe)
+		{
+			return;
+		}
+		long window = checkInMinutes() * 60_000L;
+		boolean urgentOk = config.urgentNudges();
+		if (config.sellCues() && current.sellCues != null)
+		{
+			for (Suggestion.SellCue cue : current.sellCues)
+			{
+				com.gpgenius.notify.NudgeGate.Decision d = nudges.offer(cue.key(), urgentOk && cue.urgent, quiet, now, window);
+				if (d != com.gpgenius.notify.NudgeGate.Decision.DROP)
+				{
+					digest.note(cue.reminder(), d == com.gpgenius.notify.NudgeGate.Decision.EARLY, now);
+				}
+			}
+		}
+		// An offer that needs updating is already in the reminder (CheckInDigest.suggestion); it may
+		// bring the reminder forward.
+		if (current.is(Suggestion.ABORT) && current.itemId != null && config.remindReprice()
+			&& nudges.offer("reprice:" + current.itemId + ":" + current.slot, urgentOk, quiet, now, window)
+				== com.gpgenius.notify.NudgeGate.Decision.EARLY)
+		{
+			digest.hurry();
+		}
+	}
+
 	private Theme effectiveTheme()
 	{
 		return Theme.effective(config.theme(), config.highContrast());
@@ -907,10 +969,12 @@ public class GpGeniusPlugin extends Plugin
 		if (atGe)
 		{
 			digest.seen(now);
+			nudge(now, true, false);
 			return;
 		}
 		boolean quiet = config.quietHours()
 			&& CheckInDigest.inQuietHours(LocalTime.now().getHour(), config.quietStart(), config.quietEnd());
+		nudge(now, false, quiet);
 		if (digest.due(now, checkInMinutes() * 60_000L, quiet))
 		{
 			notifier.notify(sounds(config.checkInNotification()), digest.drain(now));
@@ -1086,8 +1150,22 @@ public class GpGeniusPlugin extends Plugin
 	/** Client thread. */
 	private void onNewAlert(com.gpgenius.api.DumpAlert alert)
 	{
-		notifier.notify(sounds(config.dumpNotification()), String.format("Dump alert: %s is %.0f%% below its usual price.",
-			alert.name, alert.dropPercent));
+		// A dump is an instant-buy chance, but it still goes through the one nudge rule: at most a couple
+		// of early reminders per check-in, the rest batched into the next one.
+		String text = String.format("Dump alert: %s is %.0f%% below its usual price.", alert.name, alert.dropPercent);
+		long now = System.currentTimeMillis();
+		boolean quiet = config.quietHours()
+			&& CheckInDigest.inQuietHours(LocalTime.now().getHour(), config.quietStart(), config.quietEnd());
+		com.gpgenius.notify.NudgeGate.Decision d = nudges.offer("dump:" + alert.itemId, config.urgentNudges(), quiet,
+			now, checkInMinutes() * 60_000L);
+		if (d == com.gpgenius.notify.NudgeGate.Decision.EARLY && !ge.isOpen())
+		{
+			notifier.notify(sounds(config.dumpNotification()), text);
+		}
+		else if (d == com.gpgenius.notify.NudgeGate.Decision.BATCH)
+		{
+			digest.note(text, false, now);
+		}
 	}
 
 	/** Client thread. */
