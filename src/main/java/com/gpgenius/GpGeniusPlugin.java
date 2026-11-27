@@ -150,6 +150,9 @@ public class GpGeniusPlugin extends Plugin
 	private FlipperApiClient api;
 
 	@Inject
+	private com.gpgenius.api.ErrorLog errorLog;
+
+	@Inject
 	private UsageCounter usage;
 
 	@Inject
@@ -532,6 +535,7 @@ public class GpGeniusPlugin extends Plugin
 		catch (IOException | RuntimeException e)
 		{
 			log.warn("Could not load saved trades, starting fresh", e);
+			errorLog.record("trade_load", e.getClass().getSimpleName() + ": " + e.getMessage());
 			trades = new AccountTrades();
 		}
 		List<GrandExchangeOfferChanged> pending = new ArrayList<>(pendingOffers);
@@ -562,6 +566,7 @@ public class GpGeniusPlugin extends Plugin
 			catch (IOException e)
 			{
 				log.warn("Could not save trades", e);
+				errorLog.record("trade_save", e.getClass().getSimpleName() + ": " + e.getMessage());
 			}
 		});
 	}
@@ -1132,6 +1137,15 @@ public class GpGeniusPlugin extends Plugin
 					me = result;
 					accountError = null;
 					updateAccountPanel();
+				}
+				// Errors since the last check-in go with it, unless the player turned reports off.
+				if (config.sendErrorReports())
+				{
+					api.reportErrors(Long.toString(hash), VERSION);
+				}
+				else
+				{
+					errorLog.drain();
 				}
 			}),
 			message -> clientThread.invokeLater(() ->

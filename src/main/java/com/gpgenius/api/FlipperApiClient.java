@@ -25,12 +25,54 @@ public class FlipperApiClient
 {
 	private final AuthSession auth;
 	private final Gson gson;
+	private final ErrorLog errors;
 
 	@Inject
-	public FlipperApiClient(AuthSession auth, Gson gson)
+	public FlipperApiClient(AuthSession auth, Gson gson, ErrorLog errors)
 	{
 		this.auth = auth;
 		this.gson = gson;
+		this.errors = errors;
+	}
+
+	/**
+	 * Sends the errors kept since the last report (see {@link ErrorLog}). Called with the check-in; puts
+	 * them back if the server can't be reached so they go next time.
+	 */
+	public void reportErrors(String accountHash, String version)
+	{
+		if (errors.isEmpty())
+		{
+			return;
+		}
+		List<ErrorLog.Entry> batch = errors.drain();
+		JsonObject body = new JsonObject();
+		if (accountHash != null)
+		{
+			body.addProperty("account_hash", accountHash);
+		}
+		body.addProperty("plugin_version", version);
+		com.google.gson.JsonArray list = new com.google.gson.JsonArray();
+		for (ErrorLog.Entry e : batch)
+		{
+			JsonObject item = new JsonObject();
+			item.addProperty("kind", e.kind);
+			item.addProperty("message", e.message);
+			item.addProperty("count", e.count);
+			list.add(item);
+		}
+		body.add("errors", list);
+		// Straight to auth.send, not post(): a failed report must not report itself.
+		auth.send("/v1/plugin/errors", gson.toJson(body), response ->
+		{
+			try (ResponseBody ignored = response.body())
+			{
+				if (response.code() >= 500)
+				{
+					errors.restore(batch);
+				}
+			}
+		}, message -> errors.restore(batch));
 	}
 
 	public void suggest(SuggestionRequest body, Consumer<Suggestion> onSuccess, Consumer<String> onError)
@@ -218,12 +260,31 @@ public class FlipperApiClient
 
 	private <T> void post(String path, Object body, Class<T> type, Consumer<T> onSuccess, Consumer<String> onError)
 	{
-		auth.send(path, gson.toJson(body), response -> read(response, type, onSuccess, onError), onError);
+		auth.send(path, gson.toJson(body), response -> read(response, type, onSuccess, onError), noted(path, onError));
 	}
 
 	private <T> void get(String path, Class<T> type, Consumer<T> onSuccess, Consumer<String> onError)
 	{
-		auth.send(path, null, response -> read(response, type, onSuccess, onError), onError);
+		auth.send(path, null, response -> read(response, type, onSuccess, onError), noted(path, onError));
+	}
+
+	/** Requests that never got an answer (network down, timeouts) are kept for the next error report. */
+	private Consumer<String> noted(String path, Consumer<String> onError)
+	{
+		return message ->
+		{
+			if (!"Sign in to GP Genius first.".equals(message))
+			{
+				errors.record("request_failed:" + path, message);
+			}
+			onError.accept(message);
+		};
+	}
+
+	/** Server errors and requests it couldn't understand are worth a look; 401, 404, 409, 429 are normal. */
+	static boolean worthReporting(int code)
+	{
+		return code >= 500 || code == 400 || code == 422;
 	}
 
 	private <T> void read(Response response, Class<T> type, Consumer<T> onSuccess, Consumer<String> onError)
@@ -232,8 +293,14 @@ public class FlipperApiClient
 		{
 			if (!response.isSuccessful())
 			{
-				log.debug("{} returned {}", response.request().url().encodedPath(), response.code());
-				onError.accept(auth.errorMessage(response.code(), body));
+				String path = response.request().url().encodedPath();
+				log.debug("{} returned {}", path, response.code());
+				String message = auth.errorMessage(response.code(), body);
+				if (worthReporting(response.code()))
+				{
+					errors.record("http_" + response.code() + ":" + path, message);
+				}
+				onError.accept(message);
 				return;
 			}
 			if (type == null || body == null || response.code() == 204)
@@ -251,11 +318,14 @@ public class FlipperApiClient
 		catch (java.io.IOException e)
 		{
 			log.debug("Couldn't read the response", e);
+			errors.record("read_cut_off:" + response.request().url().encodedPath(), e.getClass().getSimpleName());
 			onError.accept("The download was cut off. Try again.");
 		}
 		catch (RuntimeException e)
 		{
 			log.debug("Bad response", e);
+			errors.record("bad_reply:" + response.request().url().encodedPath(),
+				e.getClass().getSimpleName() + ": " + e.getMessage());
 			onError.accept("The server sent a reply this version can't read.");
 		}
 	}

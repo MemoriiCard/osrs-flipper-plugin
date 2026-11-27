@@ -102,6 +102,12 @@ GP Genius server, which stores the account ID only in a scrambled form. It never
 login or anything about other players. Turn off "Sync flips to website" to keep trades on your
 computer only. Tracked trades are also saved locally in `.runelite/gp-genius/`.
 
+When something goes wrong (a request fails, the trade file can't be saved), the plugin keeps a short
+description of its last 10 errors and sends them with its next check-in, so support sees the problem on
+the player's ticket and staff are alerted when many players hit the same one. Emails, IP addresses,
+user names in file paths and anything that looks like a code are removed first. Turn off "Send error
+reports" to stop it.
+
 ## Rules this plugin follows
 
 It never clicks, types, or acts in game for you. Highlights and colours only draw; the hotkey fills a
