@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.gpgenius.GpGeniusPlugin;
 import com.gpgenius.api.DeviceStart;
+import com.gpgenius.api.ServerHealth;
 import com.gpgenius.api.Tokens;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,6 +46,7 @@ public class AuthSession
 	private final OkHttpClient http;
 	private final Gson gson;
 	private final ScheduledExecutorService executor;
+	private final ServerHealth health = new ServerHealth();
 
 	private TokenFile tokenFile;
 	private Supplier<String> baseUrl = () -> null;
@@ -132,6 +134,12 @@ public class AuthSession
 		return linking;
 	}
 
+	/** Whether the server has been answering this plugin's requests (for the offline notice and backoff). */
+	public ServerHealth health()
+	{
+		return health;
+	}
+
 	/** The server address, or null if the configured one isn't allowed. */
 	public String server()
 	{
@@ -156,12 +164,14 @@ public class AuthSession
 			@Override
 			public void onFailure(Call call, IOException e)
 			{
+				health.failed(ServerHealth.NO_ANSWER, System.currentTimeMillis());
 				onError.accept("Can't reach the GP Genius server.");
 			}
 
 			@Override
 			public void onResponse(Call call, Response response)
 			{
+				health.answered(response.code(), System.currentTimeMillis());
 				DeviceStart start;
 				try (ResponseBody body = response.body())
 				{
@@ -287,11 +297,13 @@ public class AuthSession
 				@Override
 				public void onFailure(Call call, IOException e)
 				{
+					health.failed(ServerHealth.NO_ANSWER, System.currentTimeMillis());
 				}
 
 				@Override
 				public void onResponse(Call call, Response response)
 				{
+					health.answered(response.code(), System.currentTimeMillis());
 					response.close();
 				}
 			});
@@ -341,6 +353,7 @@ public class AuthSession
 			@Override
 			public void onFailure(Call call, IOException e)
 			{
+				health.failed(ServerHealth.NO_ANSWER, System.currentTimeMillis());
 				log.debug("Request to {} failed", path, e);
 				onError.accept("Can't reach the GP Genius server.");
 			}
@@ -348,6 +361,7 @@ public class AuthSession
 			@Override
 			public void onResponse(Call call, Response response)
 			{
+				health.answered(response.code(), System.currentTimeMillis());
 				if (response.code() == 401 && retry)
 				{
 					response.close();
@@ -423,12 +437,14 @@ public class AuthSession
 			@Override
 			public void onFailure(Call call, IOException e)
 			{
+				health.failed(ServerHealth.NO_ANSWER, System.currentTimeMillis());
 				finishRefresh(null, "Can't reach the GP Genius server.");
 			}
 
 			@Override
 			public void onResponse(Call call, Response response)
 			{
+				health.answered(response.code(), System.currentTimeMillis());
 				try (ResponseBody body = response.body())
 				{
 					if (response.code() == 401)
@@ -561,6 +577,10 @@ public class AuthSession
 		if (code == 429)
 		{
 			return "Too many requests. Wait a minute and try again.";
+		}
+		if (code == 502 || code == 503 || code == 504)
+		{
+			return "The GP Genius server is down or restarting. It usually comes back within a few minutes.";
 		}
 		if (code == 426)
 		{

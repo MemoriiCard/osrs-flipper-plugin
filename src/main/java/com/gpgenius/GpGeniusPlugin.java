@@ -696,7 +696,9 @@ public class GpGeniusPlugin extends Plugin
 	{
 		final boolean enabled = config.suggestionsEnabled();
 		final Suggestion current = suggestions.getCurrent();
-		final String error = suggestions.getError();
+		// A server outage gets one plain message (since when, what to check, nothing lost) over the raw error.
+		final String outage = auth.getState() == AuthState.SIGNED_IN ? auth.health().notice(auth.server()) : null;
+		final String error = outage != null ? outage : suggestions.getError();
 		final Suggestion.Plan plan = enabled ? suggestions.getPlan() : null;
 		final boolean overnight = enabled && suggestions.isOvernight();
 		final int overnightHours = suggestions.getOvernightHours();
@@ -1632,6 +1634,30 @@ public class GpGeniusPlugin extends Plugin
 				usage.add("panel.website");
 				browse(server + "/dashboard");
 			}
+		}
+
+		@Override
+		public void openHelp()
+		{
+			String server = auth.server();
+			if (server != null)
+			{
+				usage.add("panel.help");
+				browse(server + "/help");
+			}
+		}
+
+		@Override
+		public void reportProblem(String what, boolean includeErrors)
+		{
+			clientThread.invokeLater(() ->
+			{
+				usage.add("panel.report_problem");
+				String hash = accountHash == -1 ? null : Long.toString(accountHash);
+				api.reportProblem(hash, VERSION, what, includeErrors,
+					message -> SwingUtilities.invokeLater(() -> panel.showProblemReply(message, true)),
+					message -> SwingUtilities.invokeLater(() -> panel.showProblemReply(message, false)));
+			});
 		}
 
 		@Override

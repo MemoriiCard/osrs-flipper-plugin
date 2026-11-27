@@ -69,6 +69,9 @@ public class FlipperPanel extends PluginPanel
 	private final ThemedButton cancelButton = button("Cancel", null, ThemedButton.Style.GHOST);
 	private final ThemedButton websiteButton = button("Website", "Your history, charts and plan", ThemedButton.Style.SECONDARY);
 	private final ThemedButton signOutButton = button("Sign out", null, ThemedButton.Style.GHOST);
+	private final ThemedButton reportButton = button("Report a problem",
+		"Tell us what went wrong; staff see it on your ticket", ThemedButton.Style.GHOST);
+	private boolean signedIn;
 	private final ThemedButton agreeButton = button("Agree", "Agree to the data notice and carry on", ThemedButton.Style.PRIMARY);
 	private final JPanel announcements = column();
 	/** Announcements closed this session, hidden even before the server hears about it. */
@@ -991,7 +994,13 @@ public class FlipperPanel extends PluginPanel
 		buttons.add(cancelButton);
 		buttons.add(websiteButton);
 		buttons.add(signOutButton);
-		accountCard.add(buttons, BorderLayout.SOUTH);
+		reportButton.addActionListener(e -> askProblem(actions));
+		JPanel help = row();
+		help.add(reportButton);
+		JPanel south = column();
+		stack(south, buttons, 4);
+		stack(south, help, 0);
+		accountCard.add(south, BorderLayout.SOUTH);
 
 		painters.add(() ->
 		{
@@ -1437,6 +1446,9 @@ public class FlipperPanel extends PluginPanel
 		cancelButton.setVisible(state == AuthState.LINKING);
 		websiteButton.setVisible(state == AuthState.SIGNED_IN);
 		signOutButton.setVisible(state == AuthState.SIGNED_IN);
+		signedIn = state == AuthState.SIGNED_IN;
+		// Signed out, it opens the help page instead: that's when sign-in itself may be the problem.
+		reportButton.setText(signedIn ? "Report a problem" : "Get help");
 		// Until sign-in finishes there's nothing to suggest; the getting-started steps say what to do.
 		suggestionCard.setVisible(state == AuthState.SIGNED_IN && consented);
 
@@ -1507,6 +1519,44 @@ public class FlipperPanel extends PluginPanel
 		announcements.setVisible(announcements.getComponentCount() > 0);
 		announcements.setBorder(new EmptyBorder(0, 0, announcements.isVisible() ? 8 : 0, 0));
 		announcements.revalidate();
+	}
+
+	/** Asks what went wrong, then hands it to the plugin to send. Signed out, opens the help page. */
+	private void askProblem(PanelActions actions)
+	{
+		if (!signedIn)
+		{
+			actions.openHelp();
+			return;
+		}
+		javax.swing.JTextArea what = new javax.swing.JTextArea(5, 22);
+		what.setLineWrap(true);
+		what.setWrapStyleWord(true);
+		javax.swing.JCheckBox include = new javax.swing.JCheckBox("Include the plugin's recent error messages", true);
+		include.setToolTipText("Short descriptions of failed requests, with emails, IPs, user names and codes removed");
+		JPanel form = new JPanel(new BorderLayout(0, 6));
+		form.add(new JLabel(html("What went wrong? A sentence or two is plenty (up to 300 characters). "
+			+ "Don't include passwords or bank PINs.")), BorderLayout.NORTH);
+		form.add(new javax.swing.JScrollPane(what), BorderLayout.CENTER);
+		form.add(include, BorderLayout.SOUTH);
+		int answer = javax.swing.JOptionPane.showConfirmDialog(this, form, "Report a problem",
+			javax.swing.JOptionPane.OK_CANCEL_OPTION, javax.swing.JOptionPane.PLAIN_MESSAGE);
+		if (answer != javax.swing.JOptionPane.OK_OPTION || what.getText().trim().isEmpty())
+		{
+			return;
+		}
+		reportButton.setEnabled(false);
+		reportButton.setText("Sending...");
+		actions.reportProblem(what.getText().trim(), include.isSelected());
+	}
+
+	/** The answer to "Report a problem": the server's thank-you with a reference, or why it didn't go. */
+	public void showProblemReply(String message, boolean sent)
+	{
+		reportButton.setEnabled(true);
+		reportButton.setText(signedIn ? "Report a problem" : "Get help");
+		javax.swing.JOptionPane.showMessageDialog(this, html(message), "Report a problem",
+			sent ? javax.swing.JOptionPane.INFORMATION_MESSAGE : javax.swing.JOptionPane.WARNING_MESSAGE);
 	}
 
 	private RoundedPanel announcementCard(Me.Announcement a)

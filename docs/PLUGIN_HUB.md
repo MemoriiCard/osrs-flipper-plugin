@@ -58,6 +58,80 @@ while it's in review. Each fix after that is a new commit hash in the same plugi
    itself; nothing is uploaded.
 6. **Updates:** each new version is another plugin-hub pull request with a new commit hash.
 
+## Submission pack
+
+Everything the plugin-hub pull request and its reviewers ask for, ready to paste or check.
+
+### Listing (from `runelite-plugin.properties`)
+
+- **Name:** GP Genius
+- **Description:** Make GP flipping on the Grand Exchange: smart flip suggestions that learn from real
+  results, tuned to your risk and how often you play, with highlights, hotkeys, dump alerts and profit
+  tracking.
+- **Tags:** grand exchange, ge, flipping, flip, merching, profit, trading, money making, gp, suggestions
+- **Warning** (shown before install): When signed in, this plugin sends your Grand Exchange offers and
+  trades, the coins and GE-bought items in your inventory, your character name, feature usage, error
+  reports and your IP address to the GP Genius server, which is not controlled or verified by the
+  RuneLite Developers.
+
+### What is sent, and where in the code
+
+The warning above, the in-panel notice (`DataConsent.NOTICE`, version 2) and the website's privacy page
+say the same thing. Nothing below is sent before the player presses **Agree & sign in**.
+
+| Sent | When | Code |
+| --- | --- | --- |
+| GE offers (item, price, quantity, filled) | each suggestion request | `RequestBuilder`, `SuggestionController` |
+| Coins in the inventory, GE-bought items still held | each suggestion request | `RequestBuilder.sellable` (only items the tracker saw bought) |
+| Members world or not, suggestion settings | each suggestion request | `RequestBuilder` |
+| Tracked trades | in batches, if *Sync flips to website* is on | `TradeSync` |
+| Character name, RuneLite account hash | sign-in check-in (stored scrambled on the server) | `GpGeniusPlugin.hello` |
+| Suggestion skipped/taken and ratings | when the player acts | `FlipperApiClient.feedback` |
+| Panel feature counts (no content) | every so often while signed in | `UsageCounter` |
+| Error reports, scrubbed | with the check-in, if *Send error reports* is on | `ErrorLog` |
+| "Report a problem" text | only when the player sends it | `FlipperApiClient.reportProblem` |
+
+Never sent: Jagex login, bank contents or PIN, chat, other players, files outside `.runelite/gp-genius/`
+(and Flipping Utilities' folder, read only on *Import history*).
+
+### Config defaults review
+
+Checked for "nothing surprising out of the box":
+
+- **Off by default:** spotlight, sound cues, slot roles, set and decant flips, quiet hours, every panel
+  hotkey.
+- **On by default, and why:** suggestions, highlights and slot colours (the plugin's purpose); trade
+  tracking and sync (only after the consent notice); error reports (scrubbed, can be turned off);
+  check-in, milestone, dump-alert and watchlist notifications and their sounds (they go through
+  RuneLite's `Notifier`, so RuneLite's own notification settings apply).
+- **Set price/quantity key = E:** only acts while a GE price or quantity prompt the player opened is
+  focused, writes the value into it, and the player still confirms. Reviewers have accepted the same
+  pattern elsewhere; if they ask, change the default to `Keybind.NOT_SET` in `GpGeniusConfig`.
+- **Server URL:** must be the deployed HTTPS address before submitting (step 2 above).
+
+### Screenshots
+
+The Hub listing shows the icon only, but reviewers and the website guide use these. Take them on a
+clean character at 100% UI scaling, side panel open, with the default theme:
+
+1. Side panel, signed out: the data notice and **Agree & sign in**.
+2. Side panel with a buy suggestion, and the GE slot highlighted in game.
+3. The price/quantity prompt with the hotkey's value filled in, before confirming.
+4. A completed flip in the recent flips list with profit and tax.
+5. A dump alert card.
+6. The server-down notice (stop the local backend to get it).
+7. **Report a problem** dialog.
+
+Save them under `docs/screenshots/` (PNG, at least 1280 px wide for in-game shots).
+
+### Before you press "Create pull request"
+
+- [ ] CI is green on the commit you submit (build, tests, dependency scan looked at).
+- [ ] `ServerUrl` default is the live HTTPS address, and `/healthz` answers there.
+- [ ] Repository is public; README's Privacy section matches the table above.
+- [ ] One full in-game flip done on that exact commit (TESTING.md).
+- [ ] `version` in `build.gradle` bumped.
+
 ## Keeping the server side private
 
 The plugin is open source by the Hub's rules, but everything worth protecting lives on the server:

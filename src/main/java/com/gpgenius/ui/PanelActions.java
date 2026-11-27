@@ -17,6 +17,16 @@ public interface PanelActions
 
 	void openWebsite();
 
+	/** Opens the help page (FAQ and the Discord link) in the browser. */
+	default void openHelp()
+	{
+	}
+
+	/** Sends "Report a problem"; the answer goes to FlipperPanel.showProblemReply. */
+	default void reportProblem(String what, boolean includeErrors)
+	{
+	}
+
 	void skip();
 
 	/** Pro: ask why the item on show was suggested; the answer goes to FlipperPanel.showExplanation. */
