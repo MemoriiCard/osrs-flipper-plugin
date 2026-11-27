@@ -28,10 +28,10 @@ public class ItemHistoryController
 	}
 
 	private final Fetcher fetcher;
-	private final Map<Integer, Entry> cache = new LinkedHashMap<Integer, Entry>(16, 0.75f, true)
+	private final Map<Integer, Entry> cache = new LinkedHashMap<Integer, ItemHistoryController.Entry>(16, 0.75f, true)
 	{
 		@Override
-		protected boolean removeEldestEntry(Map.Entry<Integer, Entry> eldest)
+		protected boolean removeEldestEntry(Map.Entry<Integer, ItemHistoryController.Entry> eldest)
 		{
 			return size() > REMEMBER;
 		}

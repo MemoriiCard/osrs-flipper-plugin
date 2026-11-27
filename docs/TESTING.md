@@ -71,3 +71,25 @@ trade-upload server that can be down or lose its reply. `OfferFlowTest` drives t
 tracking, sync and request code through full flips, partial fills, logging out mid-offer, an outage
 with a resend, and 200 random sessions, checking the books against what really traded. It runs with
 `./gradlew build` like every other test.
+
+## Panel click-through
+
+`src/test/java/com/gpgenius/ui/PanelClickThroughTest.java` opens the real side panel in a window and
+clicks it the way a player does, with the real sign-in session and API client talking HTTP to a stand-in
+server on localhost:
+
+- **Server-down notice.** Two failed requests (a 502 from the proxy, or no answer at all) put up the
+  plain notice with the time, the status page and "nothing is lost"; automatic requests back off; one
+  good answer takes it down again.
+- **Report a problem.** The form opens, the text goes to `POST /v1/plugin/report` with the plugin's
+  recent errors, and the thank-you shows the server's reference. While the server is down the player is
+  told so (never "thanks", never raw proxy HTML), an empty form sends nothing, and signed out the button
+  is **Get help**.
+- **First-run guide.** All four questions, a typed coin cap, the risk buttons, the check-in list and
+  the slots list, through to **Get my first suggestion**, checking the settings it saves; refusing an
+  empty amount, **Skip**, and the cash line updating when the bank is opened.
+
+It needs a display, so CI runs the build under `xvfb-run`; locally run
+`xvfb-run -a ./gradlew test --tests '*PanelClickThroughTest'`, or plain `./gradlew test` on a desktop.
+On a headless JVM the class is skipped. The full RuneLite client can't log in to the game in CI, so the
+in-game overlays are still checked by testers (above).
