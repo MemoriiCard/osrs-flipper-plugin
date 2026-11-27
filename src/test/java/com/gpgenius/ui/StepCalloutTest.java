@@ -62,6 +62,10 @@ public class StepCalloutTest
 		s.offerFix = Suggestion.FIX_SELL_FILLED;
 		assertEquals("Abort the rest, then sell 30 x Abyssal whip", StepCallout.of(NextStep.Step.SLOT, s));
 		assertEquals("$", StepCallout.slotBadge(s));
+		s.offerFix = Suggestion.FIX_CLOSE;
+		s.price = null;
+		assertEquals("Abort and keep Abyssal whip until it recovers", StepCallout.of(NextStep.Step.SLOT, s));
+		assertEquals("X", StepCallout.slotBadge(s));
 		s.offerFix = null;
 		assertEquals("X", StepCallout.slotBadge(s));
 	}

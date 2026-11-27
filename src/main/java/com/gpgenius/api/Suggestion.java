@@ -18,6 +18,8 @@ public class Suggestion
 	public static final String FIX_RAISE = "raise";
 	public static final String FIX_LOWER = "lower";
 	public static final String FIX_SELL_FILLED = "sell_filled";
+	/** Cancel a sell and keep the items out of the GE until the price recovers. */
+	public static final String FIX_CLOSE = "close";
 
 	public String action;
 	public String reason;
@@ -67,8 +69,9 @@ public class Suggestion
 	/** Items held back from sale until their price recovers. */
 	public List<Hold> holds = new ArrayList<>();
 	/**
-	 * Aborts from offer upkeep: raise or lower (price and quantity are the new offer) or sell_filled
-	 * (cancel the rest and sell quantity). Null for a plain abort and from older servers.
+	 * Aborts from offer upkeep: raise or lower (price and quantity are the new offer), sell_filled
+	 * (cancel the rest and sell quantity) or close (cancel a sell and hold the items until the price
+	 * recovers). Null for a plain abort and from older servers.
 	 */
 	@SerializedName("offer_fix")
 	public String offerFix;
@@ -167,6 +170,7 @@ public class Suggestion
 			case FIX_LOWER:
 				return price == null ? null : offerFix;
 			case FIX_SELL_FILLED:
+			case FIX_CLOSE:
 				return offerFix;
 			default:
 				return null;
@@ -189,10 +193,14 @@ public class Suggestion
 		{
 			return "SELL PART";
 		}
+		if (FIX_CLOSE.equals(fix))
+		{
+			return "CLOSE";
+		}
 		return action == null ? "" : action.toUpperCase(java.util.Locale.ROOT);
 	}
 
-	/** The action whose colour the pill and highlight use: a fix that buys or sells reads as one. */
+	/** The action whose colour the pill and highlight use: a fix that buys or sells reads as one; CLOSE stays an abort. */
 	public String colorAction()
 	{
 		String fix = fix();

@@ -61,6 +61,10 @@ public final class StepCallout
 			String what = s.quantity == null ? item : coins(s.quantity) + " x " + item;
 			return "Abort the rest, then sell " + what;
 		}
+		if (Suggestion.FIX_CLOSE.equals(fix))
+		{
+			return "Abort and keep " + item + " until it recovers";
+		}
 		return "Abort this offer: " + item;
 	}
 

@@ -82,6 +82,11 @@ public class RaiseFollowUpTest
 		assertEquals("LOWER", fix(Suggestion.FIX_LOWER).pillLabel());
 		assertEquals("SELL PART", fix(Suggestion.FIX_SELL_FILLED).pillLabel());
 		assertEquals(Suggestion.SELL, fix(Suggestion.FIX_SELL_FILLED).colorAction());
+		Suggestion close = fix(Suggestion.FIX_CLOSE);
+		close.price = null;
+		assertEquals("CLOSE", close.pillLabel());
+		assertEquals(Suggestion.ABORT, close.colorAction());
+		assertNull(close.rebuy());
 
 		Suggestion plain = fix(null);
 		assertNull(plain.fix());

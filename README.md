@@ -34,11 +34,12 @@ offer, and tracks your profit.
   are labelled and never count towards how accurate suggestions are.
 - **Dump alerts (premium).** A notification when an item is sold far below its usual price, with the
   buy price, quantity and expected profit. "Use" makes it the current suggestion.
-- **Offer upkeep.** Once an offer has sat for half your check-in window, the suggestion says the better
-  use of its slot: **RAISE** a slow buy (abort it, then the plugin walks you through rebuying at the new
-  price), **SELL PART** (abort a mostly filled buy and sell what it bought), or **LOWER** a slow sell to
-  what buyers pay, never below break-even. The slot is outlined in the colour of what comes next with a
-  "+", "-" or "$" badge. Turn it off with "Offer upkeep tips"; the plain stale-offer abort still applies.
+- **Offer upkeep.** When the server no longer expects an offer to fill at its price in reasonable time,
+  the suggestion says the better use of its slot: **RAISE** a buy (abort it, then the plugin walks you
+  through rebuying at the new price), **SELL PART** (stop buying and sell what it bought), **LOWER** a
+  sell to what buyers pay, or **CLOSE** a sell that would only fill at a loss and keep the items until
+  the price recovers. The slot is outlined in the colour of what comes next with a "+", "-", "$" or "X"
+  badge. Turn it off with "Offer upkeep tips"; the plain stale-offer abort still applies.
 - **Themes.** Grand Exchange, RuneLite, Matrix, Amethyst, Neon Cyan and Dragon. Every theme is dark
   and contrast-checked, and the in-game highlight follows the theme.
 - **Highlights you can't miss.** Under *Highlight look*: red-green safe, blue-yellow safe, high

@@ -124,7 +124,7 @@ public class HighlightOverlay extends Overlay
 				break;
 			case SLOT:
 				// An upkeep fix is drawn in the colour of what follows (buy or sell); a plain abort in red.
-				Color slotColor = s.fix() == null ? colors.abort
+				Color slotColor = s.fix() == null || Suggestion.FIX_CLOSE.equals(s.fix()) ? colors.abort
 					: Suggestion.FIX_RAISE.equals(s.fix()) ? colors.next : colors.good;
 				draw(g, ge.slot(s.slot), null, slotColor, StepCallout.slotBadge(s), label, style, now);
 				break;

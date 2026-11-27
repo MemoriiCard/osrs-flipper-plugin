@@ -416,7 +416,7 @@ public interface GpGeniusConfig extends Config
 	@ConfigItem(
 		keyName = "offerUpkeep",
 		name = "Offer upkeep tips",
-		description = "When an offer is slow, suggest the better use of its slot: raise a buy so it fills, abort a mostly filled buy and sell what it bought, or lower a sell to what buyers pay (never below break-even). You still do every step yourself.",
+		description = "When an offer is no longer expected to fill at its price, suggest the better use of its slot: offer more on a buy, or stop buying and sell what it bought; adjust a sell to what buyers pay, or close it and hold if that would mean a loss. You still do every step yourself.",
 		section = suggestionSection,
 		position = 10
 	)
