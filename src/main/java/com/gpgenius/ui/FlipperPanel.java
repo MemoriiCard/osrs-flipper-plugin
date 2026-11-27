@@ -80,7 +80,7 @@ public class FlipperPanel extends PluginPanel
 	private final JLabel suggestionError = new JLabel();
 	private final JLabel marketWarning = new JLabel();
 	private final ThemedButton skipButton = button("Skip", "Get a different suggestion", ThemedButton.Style.SECONDARY);
-	private final ThemedButton whyButton = button("Why?", "Pro: why this item, from the AI market analyst", ThemedButton.Style.SECONDARY);
+	private final ThemedButton whyButton = button("Why?", "Pro: a short reason this item is worth flipping", ThemedButton.Style.SECONDARY);
 	private final JLabel explanation = new JLabel();
 	private String explainedId;
 	private final ThemedButton blockButton = button("Block", "Never suggest this item again. Undo it in settings under Blocked items.", ThemedButton.Style.GHOST);

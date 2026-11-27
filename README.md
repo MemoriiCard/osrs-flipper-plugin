@@ -97,7 +97,7 @@ Plans differ in how fresh prices are, how often suggestions refresh and features
 
 - **Free**: suggestions from the 75 most traded free-to-play items worth up to 5M, ranked by margin and volume, refreshed every few minutes, plus tracking, highlights and hotkeys.
 - **Premium**: every item on prices about a minute old, spike-proof pricing, slot planning, market warnings, overnight mode and dump alerts. Members items are only suggested on members worlds.
-- **Pro**: everything in Premium on near-real-time prices, faster re-quotes of offers that stopped filling, and a **Why?** button with a short explanation from the AI market analyst.
+- **Pro**: everything in Premium on near-real-time prices, faster re-quotes of offers that stopped filling, and a **Why?** button with a one- or two-sentence reason (margin and what to watch).
 
 The side panel shows your plan and how often it refreshes; the plugin follows the refresh time the server sends. New logins get a 4-hour premium trial on one game account once a Discord account at least 30 days old is linked on the website. Plans are managed on the website.
 
