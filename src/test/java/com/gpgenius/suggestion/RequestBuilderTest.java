@@ -146,4 +146,24 @@ public class RequestBuilderTest
 		assertEquals(Long.valueOf(5_000), request.profile.minProfitPerFlip);
 		assertEquals("abc", request.profileId);
 	}
+
+	@Test
+	public void slotRolesAreLeftOutUnlessSwitchedOn()
+	{
+		RequestBuilder.Settings settings = new RequestBuilder.Settings();
+		SuggestionRequest off = RequestBuilder.build(settings, Collections.emptyList(), new HashMap<>(),
+			new HashMap<>(), true, Collections.emptyList());
+		assertNull(off.slotRoles);
+
+		settings.slotRoles = true;
+		settings.longSlots = 9;
+		settings.longTimeframeMinutes = 30;
+		settings.longRisk = "medium";
+		SuggestionRequest on = RequestBuilder.build(settings, Collections.emptyList(), new HashMap<>(),
+			new HashMap<>(), true, Collections.emptyList());
+		// Clamped to what the server takes.
+		assertEquals(7, on.slotRoles.longSlots);
+		assertEquals(60, on.slotRoles.timeframeMinutes);
+		assertEquals("medium", on.slotRoles.risk);
+	}
 }

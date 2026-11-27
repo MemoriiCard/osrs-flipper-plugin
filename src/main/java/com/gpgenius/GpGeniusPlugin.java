@@ -165,6 +165,12 @@ public class GpGeniusPlugin extends Plugin
 	private AlertController alerts;
 
 	@Inject
+	private com.gpgenius.market.WatchlistController watchlist;
+
+	@Inject
+	private com.gpgenius.market.ConversionController conversions;
+
+	@Inject
 	private Notifier notifier;
 
 	@Inject
@@ -204,6 +210,11 @@ public class GpGeniusPlugin extends Plugin
 	private Progress progress;
 	private long lastProgressMillis;
 	private boolean progressInFlight;
+	/** Client thread only. Last week's recap, refreshed hourly. */
+	private com.gpgenius.api.Recap recap;
+	private long lastRecapMillis;
+	private boolean recapInFlight;
+	static final long RECAP_MILLIS = 60 * 60_000;
 
 	@Override
 	protected void startUp()
@@ -301,11 +312,15 @@ public class GpGeniusPlugin extends Plugin
 				suggestions.reset();
 				cues.reset();
 				alerts.reset();
+				watchlist.reset();
+				conversions.reset();
 				prices.clear();
 				guard.setReason(null);
 				updatePanel();
 				updateAccountPanel();
 				updateAlertPanel();
+				updateWatchPanel();
+				updateConversionPanel();
 			}
 		}
 		lastGameState = state;
@@ -345,6 +360,10 @@ public class GpGeniusPlugin extends Plugin
 			{
 				refreshProgress(null);
 			}
+			if (config.weeklyRecap() && !recapInFlight && now - lastRecapMillis >= RECAP_MILLIS)
+			{
+				refreshRecap(now);
+			}
 		}
 		if (connected && client.getGameState() == GameState.LOGGED_IN)
 		{
@@ -356,6 +375,18 @@ public class GpGeniusPlugin extends Plugin
 				alerts.poll(accountHash, coins(), config.minProfit(),
 					config.itemScope() == GpGeniusConfig.ItemScope.F2P,
 					client.getWorldType().contains(WorldType.MEMBERS), this::onNewAlert, this::updateAlertPanel);
+			}
+			watchlist.tick(config.watchlist(), me != null && me.accountPremium(), now,
+				this::onWatchHit, this::updateWatchPanel);
+			if (config.conversions() && me != null && me.accountPremium() && accountHash != -1)
+			{
+				conversions.poll(accountHash, coins(), config.conversionMinProfit(), config.checkIn().minutes,
+					client.getWorldType().contains(WorldType.MEMBERS), now, this::onNewConversion, this::updateConversionPanel);
+			}
+			else if (!conversions.getOpportunities().isEmpty())
+			{
+				conversions.reset();
+				updateConversionPanel();
 			}
 		}
 		else
@@ -463,6 +494,12 @@ public class GpGeniusPlugin extends Plugin
 			{
 				panel.setAdvanced(config.viewMode() == GpGeniusConfig.ViewMode.ADVANCED);
 				updateAlertPanel();
+				updateConversionPanel();
+				updateRecapPanel();
+				if ("weeklyRecap".equals(event.getKey()) && recap == null)
+				{
+					lastRecapMillis = 0;
+				}
 				suggestions.invalidate();
 				updateSuggestionPanel();
 				updatePanel();
@@ -1061,6 +1098,56 @@ public class GpGeniusPlugin extends Plugin
 	}
 
 	/** Client thread. */
+	private void onWatchHit(String message)
+	{
+		notifier.notify(sounds(config.watchlistNotification()), message);
+	}
+
+	/** Client thread. */
+	private void updateWatchPanel()
+	{
+		final List<com.gpgenius.market.WatchlistController.Row> rows = watchlist.getRows();
+		final int over = watchlist.getOverLimit();
+		SwingUtilities.invokeLater(() -> panel.showWatchlist(rows, over));
+	}
+
+	/** Client thread. */
+	private void onNewConversion(com.gpgenius.api.Conversions.Opportunity o)
+	{
+		notifier.notify(sounds(config.conversionNotification()), String.format("Set & decant: %s for about %,d gp profit.",
+			o.title, o.profit));
+	}
+
+	/** Client thread. */
+	private void updateConversionPanel()
+	{
+		final List<com.gpgenius.api.Conversions.Opportunity> list = config.conversions()
+			? conversions.getOpportunities() : Collections.emptyList();
+		SwingUtilities.invokeLater(() -> panel.showConversions(list));
+	}
+
+	/** Client thread. */
+	private void refreshRecap(long now)
+	{
+		recapInFlight = true;
+		lastRecapMillis = now;
+		api.recap(r -> clientThread.invokeLater(() ->
+		{
+			recapInFlight = false;
+			recap = r;
+			updateRecapPanel();
+		}), message -> clientThread.invokeLater(() -> recapInFlight = false));
+	}
+
+	/** Client thread. Hidden when switched off, or hidden for this week with the card's Hide button. */
+	private void updateRecapPanel()
+	{
+		final com.gpgenius.api.Recap shown = config.weeklyRecap() && recap != null && recap.weekStart != null
+			&& !recap.weekStart.equals(config.recapHiddenWeek()) ? recap : null;
+		SwingUtilities.invokeLater(() -> panel.showRecap(shown));
+	}
+
+	/** Client thread. */
 	private void onAuthChanged()
 	{
 		if (auth.getState() != AuthState.SIGNED_IN)
@@ -1527,6 +1614,31 @@ public class GpGeniusPlugin extends Plugin
 		{
 			usage.add("panel.close_announcement");
 			api.dismissAnnouncement(announcementId);
+		}
+
+		@Override
+		public void openRecap()
+		{
+			String server = auth.server();
+			if (server != null)
+			{
+				usage.add("panel.recap");
+				browse(server + "/dashboard#recap");
+			}
+		}
+
+		@Override
+		public void hideRecap()
+		{
+			usage.add("panel.recap_hide");
+			clientThread.invokeLater(() ->
+			{
+				if (recap != null && recap.weekStart != null)
+				{
+					configManager.setConfiguration(GpGeniusConfig.GROUP, "recapHiddenWeek", recap.weekStart);
+				}
+				updateRecapPanel();
+			});
 		}
 
 		@Override

@@ -986,4 +986,160 @@ public interface GpGeniusConfig extends Config
 	{
 		return Keybind.NOT_SET;
 	}
+
+	@ConfigSection(
+		name = "Slot roles",
+		description = "Opt in: keep your last few GE slots for long, patient flips while the rest flip fast",
+		position = 10,
+		closedByDefault = true
+	)
+	String slotRoleSection = "slotRoles";
+
+	@ConfigItem(
+		keyName = "slotRoles",
+		name = "Use slot roles",
+		description = "Keep the last few GE slots for long holds with their own check-in time and risk. The other slots flip on your normal settings.",
+		section = slotRoleSection,
+		position = 0
+	)
+	default boolean slotRoles()
+	{
+		return false;
+	}
+
+	@Range(min = 1, max = 7)
+	@ConfigItem(
+		keyName = "longSlots",
+		name = "Long-hold slots",
+		description = "How many slots, counted from the last one, are for long holds.",
+		section = slotRoleSection,
+		position = 1
+	)
+	default int longSlots()
+	{
+		return 2;
+	}
+
+	@ConfigItem(
+		keyName = "longCheckIn",
+		name = "Long-hold check-in",
+		description = "How often you come back to the long-hold slots. At least every hour.",
+		section = slotRoleSection,
+		position = 2
+	)
+	default CheckIn longCheckIn()
+	{
+		return CheckIn.HOURS_8;
+	}
+
+	@ConfigItem(
+		keyName = "longRisk",
+		name = "Long-hold risk",
+		description = "Risk level for the long-hold slots.",
+		section = slotRoleSection,
+		position = 3
+	)
+	default RiskLevel longRisk()
+	{
+		return RiskLevel.LOW;
+	}
+
+	@ConfigSection(
+		name = "Sets & decanting",
+		description = "Opt in (premium): armour set and potion decant flips, shown only when they look solid",
+		position = 11,
+		closedByDefault = true
+	)
+	String conversionSection = "conversions";
+
+	@ConfigItem(
+		keyName = "conversions",
+		name = "Show set & decant flips",
+		description = "Premium. Every few minutes, look for armour sets to pack or unpack and potions to decant at the GE for a profit. Only shown when every item trades steadily and the margin has held for hours.",
+		section = conversionSection,
+		position = 0
+	)
+	default boolean conversions()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "conversionMinProfit",
+		name = "Minimum profit",
+		description = "Only show set and decant flips that make at least this much after GE tax.",
+		section = conversionSection,
+		position = 1
+	)
+	default int conversionMinProfit()
+	{
+		return 50_000;
+	}
+
+	@ConfigItem(
+		keyName = "conversionNotification",
+		name = "Notify on new ones",
+		description = "Notification when a new set or decant flip shows up.",
+		section = conversionSection,
+		position = 2
+	)
+	default Notification conversionNotification()
+	{
+		return Notification.OFF;
+	}
+
+	@ConfigSection(
+		name = "Watchlist",
+		description = "Items to watch with buy and sell target prices. Free: 3 items, premium: up to 100.",
+		position = 12,
+		closedByDefault = true
+	)
+	String watchlistSection = "watchlist";
+
+	@ConfigItem(
+		keyName = "watchlist",
+		name = "Watched items",
+		description = "One item per line: name (or item ID), buy target, sell target. For example: Abyssal whip, 1.4m, 1.6m. Leave a target out or put 0 if you don't need it.",
+		section = watchlistSection,
+		position = 0
+	)
+	default String watchlist()
+	{
+		return "";
+	}
+
+	@ConfigItem(
+		keyName = "watchlistNotification",
+		name = "Notify on target",
+		description = "Notification when a watched item's price reaches your buy or sell target.",
+		section = watchlistSection,
+		position = 1
+	)
+	default Notification watchlistNotification()
+	{
+		return Notification.ON;
+	}
+
+	@ConfigItem(
+		keyName = "weeklyRecap",
+		name = "Show weekly recap",
+		description = "Show last week's profit, best item and goal progress at the top of the panel. Hide it with the X until next week.",
+		section = trackingSection,
+		position = 50
+	)
+	default boolean weeklyRecap()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "recapHiddenWeek",
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default String recapHiddenWeek()
+	{
+		return "";
+	}
 }
