@@ -248,6 +248,17 @@ public interface GpGeniusConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "showEfficiency",
+		name = "GP per hour card",
+		description = "Show GP per hour overall, this session, recently and by GE slot in the panel. Pick the figures and their time windows with the card's Choose button.",
+		position = -1
+	)
+	default boolean showEfficiency()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "panelLayout",
 		name = "Panel layout",
 		description = "Detailed shows everything. Compact drops the price chart and flip list. Minimal is just the next step and your profit. Custom shows the parts you pick below. Compact panel, when on, means Compact.",
@@ -278,6 +289,17 @@ public interface GpGeniusConfig extends Config
 		position = 20
 	)
 	default boolean sellCues()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "efficiencyIdle",
+		name = "Idle slots and unused cash",
+		description = "On the GP per hour card, show how long each GE slot sat idle since you logged in and how many of your coins no offer is using.",
+		position = -1
+	)
+	default boolean efficiencyIdle()
 	{
 		return true;
 	}

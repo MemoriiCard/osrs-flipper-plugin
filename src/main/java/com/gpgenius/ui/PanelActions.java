@@ -103,4 +103,29 @@ public interface PanelActions
 	void setGoal(String kind, long target, String deadline, boolean allCharacters, boolean adapt);
 
 	void clearGoal();
+
+	/** The first-run guide opened: send what the plugin can see (coins, bank, world, slots in use). */
+	default void startOnboarding()
+	{
+	}
+
+	/** The player finished the first-run guide: apply the choices and fetch their first suggestion. */
+	default void finishOnboarding(com.gpgenius.setup.Onboarding.Choices choices)
+	{
+	}
+
+	/** Save which GP/hour figures to show and their windows (shared with the website). */
+	default void saveEfficiencyPrefs(java.util.Map<String, java.util.Map<String, Object>> prefs)
+	{
+	}
+
+	/** Show or hide idle slot time and unused cash on the GP/hour card. */
+	default void showIdle(boolean show)
+	{
+	}
+
+	/** Open a link in the browser, such as an item's price chart on the OSRS Wiki. */
+	default void openUrl(String url)
+	{
+	}
 }

@@ -212,6 +212,27 @@ public class FlipperApiClient
 		get(path, Progress.class, onSuccess, onError);
 	}
 
+	/** GP per hour for the character with this account hash (or every character when null). */
+	public void efficiency(String accountHash, Consumer<Efficiency> onSuccess, Consumer<String> onError)
+	{
+		String path = "/v1/efficiency";
+		if (accountHash != null && accountHash.matches("-?\\d{1,20}"))
+		{
+			path += "?account_hash=" + accountHash;
+		}
+		else
+		{
+			path += "?all_characters=true";
+		}
+		get(path, Efficiency.class, onSuccess, onError);
+	}
+
+	/** Which GP per hour figures to show and their windows; the website uses the same choices. */
+	public void saveEfficiencyPrefs(Map<String, Map<String, Object>> prefs, Consumer<Object> onSuccess, Consumer<String> onError)
+	{
+		post("/v1/efficiency/prefs", prefs, null, onSuccess, onError);
+	}
+
 	/** Starts a new profit session for this character, or every character when all is true. */
 	public void resetSession(String accountHash, String accountId, boolean all, Consumer<Progress> onSuccess, Consumer<String> onError)
 	{

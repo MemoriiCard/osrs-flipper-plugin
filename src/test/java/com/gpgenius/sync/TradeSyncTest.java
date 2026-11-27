@@ -67,4 +67,15 @@ public class TradeSyncTest
 		assertTrue(counts.size() <= 30);
 		assertTrue(usage.drain().isEmpty());
 	}
+
+	@Test
+	public void sendsTheGeSlotExceptForImportedTrades()
+	{
+		Transaction live = new Transaction(4151, "Abyssal whip", true, 1, 1_500_000, 1_700_000_000_000L, 5);
+		Transaction imported = new Transaction(4151, "Abyssal whip", false, 1, 1_600_000, 1_700_000_000_000L, 0);
+		imported.imported = true;
+		com.gpgenius.api.TradeUpload upload = TradeSync.build(1L, "Main", java.util.Arrays.asList(live, imported));
+		assertEquals(Integer.valueOf(5), upload.trades.get(0).slot);
+		org.junit.Assert.assertNull(upload.trades.get(1).slot);
+	}
 }
