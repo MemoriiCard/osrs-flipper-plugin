@@ -32,7 +32,7 @@ public final class StepCallout
 			case INVENTORY_ITEM:
 				return "Click " + item + " to sell";
 			case SLOT:
-				return "Abort this offer: " + item;
+				return slot(s, item);
 			case SET_PRICE:
 				return s.price == null ? "Set the price" : "Set price to " + coins(s.price);
 			case SET_QUANTITY:
@@ -43,6 +43,48 @@ public final class StepCallout
 			default:
 				return null;
 		}
+	}
+
+	private static String slot(Suggestion s, String item)
+	{
+		String fix = s.fix();
+		if (Suggestion.FIX_RAISE.equals(fix))
+		{
+			return "Abort, then rebuy " + item + " at " + coins(s.price) + " gp";
+		}
+		if (Suggestion.FIX_LOWER.equals(fix))
+		{
+			return "Abort, then relist " + item + " at " + coins(s.price) + " gp";
+		}
+		if (Suggestion.FIX_SELL_FILLED.equals(fix))
+		{
+			String what = s.quantity == null ? item : coins(s.quantity) + " x " + item;
+			return "Abort the rest, then sell " + what;
+		}
+		if (Suggestion.FIX_CLOSE.equals(fix))
+		{
+			return "Abort and keep " + item + " until it recovers";
+		}
+		return "Abort this offer: " + item;
+	}
+
+	/** The badge drawn on a highlighted slot, so the kind of fix doesn't rest on colour alone. */
+	public static String slotBadge(Suggestion s)
+	{
+		String fix = s == null ? null : s.fix();
+		if (Suggestion.FIX_RAISE.equals(fix))
+		{
+			return "+";
+		}
+		if (Suggestion.FIX_LOWER.equals(fix))
+		{
+			return "-";
+		}
+		if (Suggestion.FIX_SELL_FILLED.equals(fix))
+		{
+			return "$";
+		}
+		return "X";
 	}
 
 	/** The label over the open chatbox price or quantity box. */

@@ -248,6 +248,17 @@ public interface GpGeniusConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "showEfficiency",
+		name = "GP per hour card",
+		description = "Show GP per hour overall, this session, recently and by GE slot in the panel. Pick the figures and their time windows with the card's Choose button.",
+		position = -1
+	)
+	default boolean showEfficiency()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "panelLayout",
 		name = "Panel layout",
 		description = "Detailed shows everything. Compact drops the price chart and flip list. Minimal is just the next step and your profit. Custom shows the parts you pick below. Compact panel, when on, means Compact.",
@@ -278,6 +289,17 @@ public interface GpGeniusConfig extends Config
 		position = 20
 	)
 	default boolean sellCues()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "efficiencyIdle",
+		name = "Idle slots and unused cash",
+		description = "On the GP per hour card, show how long each GE slot sat idle since you logged in and how many of your coins no offer is using.",
+		position = -1
+	)
+	default boolean efficiencyIdle()
 	{
 		return true;
 	}
@@ -462,6 +484,18 @@ public interface GpGeniusConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "offerUpkeep",
+		name = "Offer upkeep tips",
+		description = "When an offer is no longer expected to fill at its price, suggest the better use of its slot: offer more on a buy, or stop buying and sell what it bought; adjust a sell to what buyers pay, or close it and hold if that would mean a loss. You still do every step yourself.",
+		section = suggestionSection,
+		position = 10
+	)
+	default boolean offerUpkeep()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "coinCap",
 		name = "Coins to flip with",
 		description = "The most coins suggestions may use, counting open buy offers. 0 uses all the coins in your inventory.",
@@ -542,6 +576,18 @@ public interface GpGeniusConfig extends Config
 		position = 0
 	)
 	default Notification checkInNotification()
+	{
+		return Notification.ON;
+	}
+
+	@ConfigItem(
+		keyName = "milestoneNotification",
+		name = "Milestone reached",
+		description = "A notification when you reach a new profit milestone (1M up to 10B). Share it from the website dashboard. Hide milestones there if you'd rather not see them.",
+		section = reminderSection,
+		position = 9
+	)
+	default Notification milestoneNotification()
 	{
 		return Notification.ON;
 	}
@@ -788,6 +834,18 @@ public interface GpGeniusConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "sendErrorReports",
+		name = "Send error reports",
+		description = "When something goes wrong (a request fails, a file can't be saved), send a short description to GP Genius so support can see it in your ticket. Never includes your email, IP address, file-path user name or any code. Needs sign-in.",
+		section = trackingSection,
+		position = 1
+	)
+	default boolean sendErrorReports()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "recentFlipCount",
 		name = "Recent flips shown",
 		description = "How many recent flips the side panel lists in the advanced view.",
@@ -807,6 +865,18 @@ public interface GpGeniusConfig extends Config
 		position = 3
 	)
 	default boolean priceChart()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "itemHistoryLine",
+		name = "My history with the item",
+		description = "Under the suggestion, show your own record with that item: flips, profit, win rate, average margin and hold time. The website's dashboard has the full page.",
+		section = trackingSection,
+		position = 4
+	)
+	default boolean itemHistoryLine()
 	{
 		return true;
 	}

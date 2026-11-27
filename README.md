@@ -12,6 +12,10 @@ offer, and tracks your profit.
 - **One next step at a time.** Buy, sell, abort a stale offer, or wait. The plugin highlights the slot,
   button or item to click next, and a hotkey (E by default) fills the suggested price or quantity into
   the GE prompt. You still press every key and click every button.
+- **A guided first run.** Four quick questions, each filled in from what the plugin can see: your
+  cash stack (coins and platinum tokens in your inventory, plus your bank once you open it), risk,
+  how often you check, and how many GE slots to use (3 on free worlds, 8 on members worlds). Confirm
+  or change each one and your first suggestion follows. *Use a preset instead* is one click away.
 - **One-click start.** Pick Active, AFK, Overnight, Low budget or High volume and the first suggestion
   arrives within seconds. Start again any time from the Presets button at the top of the panel.
 - **Saved profiles.** Each preset you pick is saved as a profile on your account, with its own risk,
@@ -34,8 +38,12 @@ offer, and tracks your profit.
   are labelled and never count towards how accurate suggestions are.
 - **Dump alerts (premium).** A notification when an item is sold far below its usual price, with the
   buy price, quantity and expected profit. "Use" makes it the current suggestion.
-- **Stale offer repricing.** An offer that sits longer than your check-in window at a price the market
-  has left gets flagged, with the price to rebuy or relist at.
+- **Offer upkeep.** When the server no longer expects an offer to fill at its price in reasonable time,
+  the suggestion says the better use of its slot: **RAISE** a buy (abort it, then the plugin walks you
+  through rebuying at the new price), **SELL PART** (stop buying and sell what it bought), **LOWER** a
+  sell to what buyers pay, or **CLOSE** a sell that would only fill at a loss and keep the items until
+  the price recovers. The slot is outlined in the colour of what comes next with a "+", "-", "$" or "X"
+  badge. Turn it off with "Offer upkeep tips"; the plain stale-offer abort still applies.
 - **Themes.** Grand Exchange, RuneLite, Matrix, Amethyst, Neon Cyan and Dragon. Every theme is dark
   and contrast-checked, and the in-game highlight follows the theme.
 - **Highlights you can't miss.** Under *Highlight look*: red-green safe, blue-yellow safe, high
@@ -49,7 +57,13 @@ offer, and tracks your profit.
   default and rate limited.
 - **Optional hotkeys.** Highlights on/off, refresh suggestion, next profile, simple/advanced view and
   compact panel. All unset by default and kept per computer.
+- **Milestones and streaks.** The goal card shows your top profit badge (1M up to 10B), the next one and
+  your streak of profitable days, and a notification says when you reach a new one ("Milestone
+  reached"). Share badges and choose a Discord rank role from the website dashboard.
 - **Price chart.** Day, week and month charts of the item you're setting up or the suggested item.
+- **Your history with the item.** One line under the suggestion with your own record for that item, such
+  as "You: 12 flips, +3.4M, 83% wins, 85,000 gp each, avg 41 min". The website dashboard has the full
+  page (click any item). Turn it off with "My history with the item".
 - **Offer slot colours.** Active offers are outlined green while their price still fills and red,
   dashed and marked "!" once the market has moved past it (colours follow *Highlight colours*).
 - **Market warnings.** When an item's prices are unstable, or a game update or event is due, the
@@ -65,6 +79,11 @@ offer, and tracks your profit.
 - **Profit at a glance.** Session, 1 hour, 12 hours, day, week, month and all time, for this
   character, any other character or all of them combined. *Reset session* starts a new session for the
   characters shown and leaves every other total alone. The same table is on the website dashboard.
+- **GP per hour.** Overall, this session, recently and by GE slot, with idle slot time and unused
+  cash since you logged in. Choose which figures to show and each one's time window; the website's
+  dashboard uses the same choices.
+- **Price chart on the OSRS Wiki.** Click the suggested item's name, or right-click it and pick
+  *Open price chart on the OSRS Wiki*, to see its Grand Exchange history there.
 - **Suggested minimum cash stack.** A round figure such as 200M: the smallest stack we suggest
   flipping with to hold on to the gains you've reached. It's worked out on the server and only appears
   once your stack is known.
@@ -103,7 +122,7 @@ Plans differ in how fresh prices are, how often suggestions refresh and features
 
 - **Free**: suggestions from the 75 most traded free-to-play items worth up to 5M, ranked by margin and volume, refreshed every few minutes, plus tracking, highlights and hotkeys.
 - **Premium**: every item on prices about a minute old, spike-proof pricing, slot planning, market warnings, overnight mode and dump alerts. Members items are only suggested on members worlds.
-- **Pro**: everything in Premium on near-real-time prices, faster re-quotes of offers that stopped filling, and a **Why?** button with a short explanation from the AI market analyst.
+- **Pro**: everything in Premium on near-real-time prices, faster re-quotes of offers that stopped filling, and a **Why?** button with a one- or two-sentence reason (margin and what to watch).
 
 The side panel shows your plan and how often it refreshes; the plugin follows the refresh time the server sends. New logins get a 4-hour premium trial on one game account once a Discord account at least 30 days old is linked on the website. Plans are managed on the website.
 
@@ -115,7 +134,15 @@ only. When signed in, the plugin sends your GE offers, the
 trades it tracked, the coins in your inventory, your character name and RuneLite's account ID to the
 GP Genius server, which stores the account ID only in a scrambled form. It never sees your Jagex
 login or anything about other players. Turn off "Sync flips to website" to keep trades on your
-computer only. Tracked trades are also saved locally in `.runelite/gp-genius/`.
+computer only. Tracked trades are also saved locally in `.runelite/gp-genius/`. Each trade carries the GE slot it was
+in, for GP per hour by slot. The first-run guide counts the coins in your bank on this computer
+only, to fill in your cash stack; that count is never sent.
+
+When something goes wrong (a request fails, the trade file can't be saved), the plugin keeps a short
+description of its last 10 errors and sends them with its next check-in, so support sees the problem on
+the player's ticket and staff are alerted when many players hit the same one. Emails, IP addresses,
+user names in file paths and anything that looks like a code are removed first. Turn off "Send error
+reports" to stop it.
 
 ## Rules this plugin follows
 

@@ -25,6 +25,46 @@ public class Progress
 	public List<Character> characters = new ArrayList<>();
 	public Character combined;
 	public Goal goal;
+	/** Milestones and streaks. Null when the player hid them, and from older servers. */
+	public Milestones milestones;
+
+	/** The player's milestone summary. Counts only flips the plugin recorded. */
+	public static class Milestones
+	{
+		/** Key of the highest profit badge, such as "profit-100000000"; changes when a new one is earned. */
+		@SerializedName("profit_badge")
+		public String profitBadge;
+		@SerializedName("profit_badge_label")
+		public String profitBadgeLabel;
+		@SerializedName("next_profit_badge_label")
+		public String nextProfitBadgeLabel;
+		@SerializedName("next_profit_fraction")
+		public double nextProfitFraction;
+		@SerializedName("current_streak")
+		public int currentStreak;
+		@SerializedName("longest_streak")
+		public int longestStreak;
+
+		/** One line for the panel, e.g. "★ 100M profit · next 250M profit (13%) · 4-day streak". */
+		public String line()
+		{
+			StringBuilder out = new StringBuilder();
+			if (profitBadgeLabel != null)
+			{
+				out.append("\u2605 ").append(profitBadgeLabel);
+			}
+			if (nextProfitBadgeLabel != null)
+			{
+				out.append(out.length() == 0 ? "Next: " : " \u00b7 next ").append(nextProfitBadgeLabel)
+					.append(" (").append(Math.round(Math.max(0, Math.min(1, nextProfitFraction)) * 100)).append("%)");
+			}
+			if (currentStreak >= 2)
+			{
+				out.append(out.length() == 0 ? "" : " \u00b7 ").append(currentStreak).append("-day streak");
+			}
+			return out.toString();
+		}
+	}
 
 	public static class Window
 	{

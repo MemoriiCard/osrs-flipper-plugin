@@ -23,6 +23,7 @@ import com.gpgenius.history.FlippingUtilitiesImport;
 import com.gpgenius.notify.CheckInDigest;
 import com.gpgenius.notify.SoundCue;
 import com.gpgenius.notify.SoundCues;
+import com.gpgenius.setup.Onboarding;
 import com.gpgenius.setup.ProfileController;
 import com.gpgenius.suggestion.RequestBuilder;
 import com.gpgenius.suggestion.SuggestionController;
@@ -153,6 +154,9 @@ public class GpGeniusPlugin extends Plugin
 	private FlipperApiClient api;
 
 	@Inject
+	private com.gpgenius.api.ErrorLog errorLog;
+
+	@Inject
 	private net.runelite.client.eventbus.EventBus eventBus;
 
 	/** The per-character "Leaderboard name" setting, kept in step with the website. */
@@ -200,6 +204,8 @@ public class GpGeniusPlugin extends Plugin
 	private List<Suggestion.BuyLimit> shownLimits;
 	private boolean importInFlight;
 	private ChartController chart;
+	private com.gpgenius.history.ItemHistoryController itemHistory;
+	private final com.gpgenius.notify.MilestoneWatch milestones = new com.gpgenius.notify.MilestoneWatch();
 	private NavigationButton navButton;
 	private TradeStore store;
 
@@ -224,6 +230,9 @@ public class GpGeniusPlugin extends Plugin
 	private Progress progress;
 	private long lastProgressMillis;
 	private boolean progressInFlight;
+	private boolean efficiencyInFlight;
+	/** Idle GE slot time and unused cash since login, for the GP per hour card. */
+	private final com.gpgenius.tracking.IdleTracker idle = new com.gpgenius.tracking.IdleTracker();
 	/** Client thread only. Last week's recap, refreshed hourly. */
 	private com.gpgenius.api.Recap recap;
 	private long lastRecapMillis;
@@ -242,6 +251,8 @@ public class GpGeniusPlugin extends Plugin
 		panel.setTextScale(config.textSize().scale);
 		panel.showSetup(!config.setupDone());
 		panel.setCompact(config.compactLayout());
+		panel.setEfficiencyVisible(config.showEfficiency());
+		panel.setShowIdle(config.efficiencyIdle());
 		profiles = new ProfileController(config, configManager, api, this::updateProfilePanel);
 		auth.start(new TokenFile(gson, dir), config::apiUrl, () -> clientThread.invokeLater(this::onAuthChanged));
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "nav_icon.png");
@@ -257,6 +268,10 @@ public class GpGeniusPlugin extends Plugin
 		suggestions.setOnChange(this::updateSuggestionPanel);
 		chart = new ChartController(api, clientThread::invokeLater);
 		chart.setOnChange(this::updateChartPanel);
+		itemHistory = new com.gpgenius.history.ItemHistoryController((id, done) -> api.itemHistory(id,
+			h -> clientThread.invokeLater(() -> done.accept(h)),
+			message -> clientThread.invokeLater(() -> done.accept(null))));
+		itemHistory.setOnChange(this::updateSuggestionPanel);
 		overlayManager.add(highlightOverlay);
 		overlayManager.add(sellCueOverlay);
 		SwingUtilities.invokeLater(() -> panel.setView(layoutView()));
@@ -321,12 +336,15 @@ public class GpGeniusPlugin extends Plugin
 		{
 			loginTick = client.getTickCount();
 			loadAccount(client.getAccountHash());
+			idle.start(System.currentTimeMillis(), client.getWorldType().contains(WorldType.MEMBERS)
+				? com.gpgenius.setup.Onboarding.MEMBERS_SLOTS : com.gpgenius.setup.Onboarding.FREE_SLOTS);
 		}
 		else if (state == GameState.LOGIN_SCREEN || state == GameState.HOPPING)
 		{
 			saveAsync();
 			if (state == GameState.LOGIN_SCREEN)
 			{
+				idle.stop();
 				trades = null;
 				accountHash = -1;
 				me = null;
@@ -392,6 +410,7 @@ public class GpGeniusPlugin extends Plugin
 			prices.want(pricedItems());
 			watchOutbid();
 			chart.tick(config.priceChart() ? chartItem() : null, now);
+			itemHistory.tick(config.itemHistoryLine() ? chartItem() : null, now);
 			if (config.dumpAlerts() && me != null && me.accountPremium() && accountHash != -1)
 			{
 				alerts.poll(accountHash, coins(), config.minProfit(),
@@ -414,6 +433,8 @@ public class GpGeniusPlugin extends Plugin
 		else
 		{
 			chart.tick(null, now);
+			// Signed out or another character: forget the last player's records.
+			itemHistory.clear();
 		}
 		updateGuard();
 		checkIn(now);
@@ -446,6 +467,12 @@ public class GpGeniusPlugin extends Plugin
 		if (event.getContainerId() == InventoryID.INV)
 		{
 			suggestions.invalidate();
+			updateIdleCash();
+		}
+		if ((event.getContainerId() == InventoryID.INV || event.getContainerId() == InventoryID.BANK) && panel.onboardingOpen())
+		{
+			Onboarding.Detected detected = detectForOnboarding();
+			SwingUtilities.invokeLater(() -> panel.onboardingDetected(detected));
 		}
 	}
 
@@ -453,6 +480,10 @@ public class GpGeniusPlugin extends Plugin
 	public void onGrandExchangeOfferChanged(GrandExchangeOfferChanged event)
 	{
 		suggestions.invalidate();
+		GrandExchangeOfferState idleState = event.getOffer().getState();
+		idle.slot(event.getSlot(), idleState == GrandExchangeOfferState.BUYING || idleState == GrandExchangeOfferState.SELLING,
+			System.currentTimeMillis());
+		updateIdleCash();
 		boolean trusted = client.getGameState() == GameState.LOGGED_IN
 			&& client.getTickCount() - loginTick > LOGIN_BURST_TICKS;
 		digest.offerChanged(event.getSlot(), toStatus(event.getOffer().getState()),
@@ -507,6 +538,15 @@ public class GpGeniusPlugin extends Plugin
 				|| "panelParts".equals(event.getKey()))
 			{
 				SwingUtilities.invokeLater(() -> panel.setView(layoutView()));
+			}
+			if ("showEfficiency".equals(event.getKey()) || "efficiencyIdle".equals(event.getKey()))
+			{
+				SwingUtilities.invokeLater(() ->
+				{
+					panel.setEfficiencyVisible(config.showEfficiency());
+					panel.setShowIdle(config.efficiencyIdle());
+					panel.showEfficiency(null, idle, null);
+				});
 			}
 			profiles.settingChanged(event.getKey(), System.currentTimeMillis());
 			if ("setupDone".equals(event.getKey()) && !config.setupDone())
@@ -592,6 +632,7 @@ public class GpGeniusPlugin extends Plugin
 		catch (IOException | RuntimeException e)
 		{
 			log.warn("Could not load saved trades, starting fresh", e);
+			errorLog.record("trade_load", e.getClass().getSimpleName() + ": " + e.getMessage());
 			trades = new AccountTrades();
 		}
 		List<GrandExchangeOfferChanged> pending = new ArrayList<>(pendingOffers);
@@ -622,6 +663,7 @@ public class GpGeniusPlugin extends Plugin
 			catch (IOException e)
 			{
 				log.warn("Could not save trades", e);
+				errorLog.record("trade_save", e.getClass().getSimpleName() + ": " + e.getMessage());
 			}
 		});
 	}
@@ -670,9 +712,11 @@ public class GpGeniusPlugin extends Plugin
 			digest.suggestion(current.action, current.name, current.headline(), config.remindReprice(),
 				config.remindNextStep(), System.currentTimeMillis());
 		}
+		final String historyLine = enabled && itemHistory != null && config.itemHistoryLine() ? itemHistory.line() : null;
 		SwingUtilities.invokeLater(() ->
 		{
 			panel.showSuggestion(enabled, current, error);
+			panel.showItemHistory(historyLine);
 			panel.showPlan(plan);
 			panel.showSlots(slotPlan);
 			panel.showOvernight(overnightAvailable, overnight, overnightHours);
@@ -1016,6 +1060,7 @@ public class GpGeniusPlugin extends Plugin
 		progressInFlight = true;
 		lastProgressMillis = System.currentTimeMillis();
 		final long hash = accountHash;
+		refreshEfficiency(hash);
 		api.progress(hash == -1 ? null : Long.toString(hash),
 			result -> clientThread.invokeLater(() ->
 			{
@@ -1036,9 +1081,105 @@ public class GpGeniusPlugin extends Plugin
 			}));
 	}
 
+	/** Client thread. GP per hour for the character logged in, with the player's own choices. */
+	private void refreshEfficiency(long hash)
+	{
+		if (!config.showEfficiency() || efficiencyInFlight)
+		{
+			return;
+		}
+		efficiencyInFlight = true;
+		api.efficiency(hash == -1 ? null : Long.toString(hash),
+			result -> clientThread.invokeLater(() ->
+			{
+				efficiencyInFlight = false;
+				if (hash == accountHash)
+				{
+					SwingUtilities.invokeLater(() -> panel.showEfficiency(result, idle, null));
+				}
+			}),
+			message -> clientThread.invokeLater(() ->
+			{
+				efficiencyInFlight = false;
+				log.debug("GP per hour refresh failed: {}", message);
+				SwingUtilities.invokeLater(() -> panel.showEfficiency(null, idle, null));
+			}));
+	}
+
+	/** Client thread. Coins carried and coins sitting in buy offers, for "unused cash". */
+	private void updateIdleCash()
+	{
+		long inBuys = 0;
+		GrandExchangeOffer[] offers = client.getGrandExchangeOffers();
+		if (offers != null)
+		{
+			for (GrandExchangeOffer offer : offers)
+			{
+				if (offer != null && offer.getState() == GrandExchangeOfferState.BUYING)
+				{
+					inBuys += (long) Math.max(0, offer.getTotalQuantity() - offer.getQuantitySold()) * offer.getPrice();
+				}
+			}
+		}
+		idle.cash(coins(), inBuys);
+	}
+
+	/** Client thread. What the first-run guide can prefill: coins carried and banked, world, slots in use. */
+	private Onboarding.Detected detectForOnboarding()
+	{
+		java.util.Map<Integer, Long> inventory = items(client.getItemContainer(InventoryID.INV));
+		net.runelite.api.ItemContainer bankContainer = client.getItemContainer(InventoryID.BANK);
+		java.util.Map<Integer, Long> bank = bankContainer == null ? null : items(bankContainer);
+		int inUse = 0;
+		GrandExchangeOffer[] offers = client.getGrandExchangeOffers();
+		if (offers != null)
+		{
+			for (GrandExchangeOffer offer : offers)
+			{
+				if (offer != null && offer.getState() != GrandExchangeOfferState.EMPTY)
+				{
+					inUse++;
+				}
+			}
+		}
+		boolean members = client.getGameState() == GameState.LOGGED_IN
+			? client.getWorldType().contains(WorldType.MEMBERS) : true;
+		return Onboarding.detect(inventory, bank, members, inUse);
+	}
+
+	private static java.util.Map<Integer, Long> items(net.runelite.api.ItemContainer container)
+	{
+		java.util.Map<Integer, Long> out = new java.util.HashMap<>();
+		if (container == null)
+		{
+			return out;
+		}
+		for (net.runelite.api.Item item : container.getItems())
+		{
+			if (item.getId() == Onboarding.COINS || item.getId() == Onboarding.PLATINUM_TOKEN)
+			{
+				out.merge(item.getId(), (long) item.getQuantity(), Long::sum);
+			}
+		}
+		return out;
+	}
+
 	/** Client thread. */
 	private void showProgress(Progress result, String error)
 	{
+		if (result == null)
+		{
+			milestones.reset();
+		}
+		else if (error == null)
+		{
+			String badge = milestones.update(result.milestones);
+			Notification n = config.milestoneNotification();
+			if (badge != null && n != null && n.isEnabled())
+			{
+				notifier.notify(sounds(n), "Milestone reached: " + badge + "! Share it from your GP Genius dashboard.");
+			}
+		}
 		progress = result;
 		SwingUtilities.invokeLater(() -> panel.showProgress(result, error));
 	}
@@ -1308,6 +1449,15 @@ public class GpGeniusPlugin extends Plugin
 					accountError = null;
 					updateAccountPanel();
 				}
+				// Errors since the last check-in go with it, unless the player turned reports off.
+				if (config.sendErrorReports())
+				{
+					api.reportErrors(Long.toString(hash), VERSION);
+				}
+				else
+				{
+					errorLog.drain();
+				}
 			}),
 			message -> clientThread.invokeLater(() ->
 			{
@@ -1570,6 +1720,64 @@ public class GpGeniusPlugin extends Plugin
 		{
 			usage.add("profile.delete");
 			profiles.delete(profileId);
+		}
+
+		@Override
+		public void startOnboarding()
+		{
+			clientThread.invokeLater(() ->
+			{
+				Onboarding.Detected detected = detectForOnboarding();
+				String risk = config.riskLevel().name();
+				int checkIn = config.checkIn().minutes;
+				SwingUtilities.invokeLater(() -> panel.startOnboarding(detected, risk, checkIn));
+			});
+		}
+
+		@Override
+		public void finishOnboarding(Onboarding.Choices choices)
+		{
+			usage.add("setup.guide_done");
+			java.util.Map<String, Object> settings = Onboarding.settings(choices);
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "riskLevel",
+				GpGeniusConfig.RiskLevel.valueOf((String) settings.get("riskLevel")));
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "checkIn",
+				GpGeniusConfig.CheckIn.valueOf((String) settings.get("checkIn")));
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "coinCap", settings.get("coinCap"));
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "reservedSlots", settings.get("reservedSlots"));
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "setupPreset", "");
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "setupDone", true);
+			// The first suggestion comes on the next refresh with the new settings.
+			clientThread.invokeLater(() ->
+			{
+				suggestions.invalidate();
+				updateSuggestionPanel();
+			});
+		}
+
+		@Override
+		public void saveEfficiencyPrefs(java.util.Map<String, java.util.Map<String, Object>> prefs)
+		{
+			usage.add("panel.efficiency_prefs");
+			api.saveEfficiencyPrefs(prefs,
+				saved -> clientThread.invokeLater(() -> refreshEfficiency(accountHash)),
+				message -> SwingUtilities.invokeLater(() -> panel.showEfficiency(null, idle, message)));
+		}
+
+		@Override
+		public void showIdle(boolean show)
+		{
+			configManager.setConfiguration(GpGeniusConfig.GROUP, "efficiencyIdle", show);
+		}
+
+		@Override
+		public void openUrl(String url)
+		{
+			if (url != null && url.startsWith(com.gpgenius.ui.WikiLinks.PRICES))
+			{
+				usage.add("panel.wiki_chart");
+				LinkBrowser.browse(url);
+			}
 		}
 
 		@Override

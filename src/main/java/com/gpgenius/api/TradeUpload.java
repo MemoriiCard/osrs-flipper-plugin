@@ -27,5 +27,7 @@ public class TradeUpload
 		public long timestampMs;
 		/** From another tracker's history; the server keeps it out of suggestion accuracy numbers. */
 		public boolean imported;
+		/** The GE slot (0 to 7) the offer was in, for GP/hour by slot. Null for imported trades. */
+		public Integer slot;
 	}
 }

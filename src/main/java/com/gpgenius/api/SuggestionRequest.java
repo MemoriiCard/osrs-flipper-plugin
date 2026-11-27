@@ -81,6 +81,9 @@ public class SuggestionRequest
 		public List<String> categories = new ArrayList<>();
 		@SerializedName("members_only")
 		public boolean membersOnly;
+		/** Offer upkeep tips: raise slow buys, sell what a stalled buy has bought, lower slow sells. */
+		@SerializedName("offer_upkeep")
+		public boolean offerUpkeep = true;
 	}
 
 	public static class Account

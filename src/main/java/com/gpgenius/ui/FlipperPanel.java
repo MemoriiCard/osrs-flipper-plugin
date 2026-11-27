@@ -13,8 +13,11 @@ import com.gpgenius.api.SlotPlan;
 import com.gpgenius.api.Suggestion;
 import com.gpgenius.auth.AuthState;
 import com.gpgenius.auth.DataConsent;
+import com.gpgenius.api.Efficiency;
+import com.gpgenius.setup.Onboarding;
 import com.gpgenius.market.WatchlistController;
 import com.gpgenius.setup.Preset;
+import com.gpgenius.tracking.IdleTracker;
 import com.gpgenius.tracking.Flip;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -77,10 +80,12 @@ public class FlipperPanel extends PluginPanel
 	private final JLabel suggestionPrice = new JLabel();
 	private final JLabel suggestionProfit = new JLabel();
 	private final JLabel suggestionReason = new JLabel();
+	/** The player's own record with the item on show. */
+	private final JLabel itemHistoryLine = new JLabel();
 	private final JLabel suggestionError = new JLabel();
 	private final JLabel marketWarning = new JLabel();
 	private final ThemedButton skipButton = button("Skip", "Get a different suggestion", ThemedButton.Style.SECONDARY);
-	private final ThemedButton whyButton = button("Why?", "Pro: why this item, from the AI market analyst", ThemedButton.Style.SECONDARY);
+	private final ThemedButton whyButton = button("Why?", "Pro: a short reason this item is worth flipping", ThemedButton.Style.SECONDARY);
 	private final JLabel explanation = new JLabel();
 	private String explainedId;
 	private final ThemedButton blockButton = button("Block", "Never suggest this item again. Undo it in settings under Blocked items.", ThemedButton.Style.GHOST);
@@ -91,10 +96,17 @@ public class FlipperPanel extends PluginPanel
 	private final JPanel actionRow = row();
 	private final JPanel rateRow = row();
 	private String suggestionAction;
+	/** The pill's word and colour: the action, or an offer-upkeep fix such as RAISE. */
+	private String pillText = "";
+	private String pillColor;
 
 	private final ThemedButton favouriteButton = button("Favourite", "Prefer this item when it's a good flip. Undo it in settings under Favourite items.", ThemedButton.Style.GHOST);
 
 	private final RoundedPanel setupCard = card();
+	private OnboardingCard onboardingCard;
+	private EfficiencyCard efficiencyCard;
+	/** The item the suggestion card shows, for its wiki price chart link. 0 when none. */
+	private volatile int shownItemId;
 	private final JLabel setupTitle = new JLabel("Pick how you play");
 	private final JLabel setupIntro = new JLabel();
 	private final JPanel presetGrid = new JPanel(new GridLayout(0, 1, 0, 4));
@@ -187,6 +199,8 @@ public class FlipperPanel extends PluginPanel
 	private final JLabel goalProgress = new JLabel();
 	private final JLabel goalAdvice = new JLabel();
 	private final JLabel goalError = new JLabel();
+	/** Milestones and streaks: the top profit badge, the next one and the streak. */
+	private final JLabel milestoneLine = new JLabel();
 	private final ThemedButton setGoalButton = button("Set a goal", "Pick a target and a date. Suggestions and check-in reminders can adapt to keep you on pace.", ThemedButton.Style.SECONDARY);
 	private final ThemedButton clearGoalButton = button("Clear", "Stop tracking this goal", ThemedButton.Style.GHOST);
 
@@ -244,6 +258,7 @@ public class FlipperPanel extends PluginPanel
 		content.add(header());
 		content.add(Box.createVerticalStrut(8));
 		content.add(profileBar(actions));
+		content.add(onboardingCard(actions));
 		content.add(setupCard(actions));
 		content.add(tourCard());
 		content.add(accountCard(actions));
@@ -267,6 +282,8 @@ public class FlipperPanel extends PluginPanel
 		content.add(chartCard(actions));
 		content.add(Box.createVerticalStrut(8));
 		content.add(profitCard(actions));
+		content.add(Box.createVerticalStrut(8));
+		content.add(efficiencyCard(actions));
 		content.add(Box.createVerticalStrut(10));
 		content.add(flipsHeading);
 		content.add(Box.createVerticalStrut(4));
@@ -554,17 +571,91 @@ public class FlipperPanel extends PluginPanel
 	}
 
 	/** Shows or hides the preset picker. */
+	/** Shows the first-run guide (show) or closes it and the preset card. */
 	public void showSetup(boolean show)
 	{
-		setupCard.setVisible(show);
+		onboardingCard.setVisible(show);
+		setupCard.setVisible(false);
 		setupCard.setBorder(new EmptyBorder(10, 12, 10, 10));
 		openSetupButton.setVisible(!show);
 		if (show)
 		{
 			tourCard.setVisible(false);
+			actions.startOnboarding();
 		}
 		revalidate();
 		repaint();
+	}
+
+	/** Swing thread. Starts the guide with starting values from what the plugin could see. */
+	public void startOnboarding(Onboarding.Detected detected, String risk, int checkInMinutes)
+	{
+		onboardingCard.start(detected, risk, checkInMinutes);
+	}
+
+	/** Swing thread. New coin or slot counts while the guide is open (the bank was opened, say). */
+	public void onboardingDetected(Onboarding.Detected detected)
+	{
+		if (onboardingCard.isVisible())
+		{
+			onboardingCard.detected(detected);
+		}
+	}
+
+	public boolean onboardingOpen()
+	{
+		return onboardingCard != null && onboardingCard.isVisible();
+	}
+
+	private JComponent onboardingCard(PanelActions actions)
+	{
+		onboardingCard = new OnboardingCard(
+			choices ->
+			{
+				actions.finishOnboarding(choices);
+				showSetup(false);
+				tourCard.setVisible(true);
+				revalidate();
+				repaint();
+			},
+			() ->
+			{
+				actions.skipSetup();
+				showSetup(false);
+			},
+			() ->
+			{
+				onboardingCard.setVisible(false);
+				setupCard.setVisible(true);
+				revalidate();
+				repaint();
+			});
+		onboardingCard.setVisible(false);
+		painters.add(() -> onboardingCard.setTheme(theme));
+		return onboardingCard;
+	}
+
+	private JComponent efficiencyCard(PanelActions actions)
+	{
+		efficiencyCard = new EfficiencyCard(actions::saveEfficiencyPrefs, actions::showIdle);
+		painters.add(() -> efficiencyCard.setTheme(theme));
+		return efficiencyCard;
+	}
+
+	/** Swing thread. GP/hour from the server (null keeps the last), the live idle tracker and any error. */
+	public void showEfficiency(Efficiency efficiency, IdleTracker tracker, String error)
+	{
+		efficiencyCard.show(efficiency, tracker, error, System.currentTimeMillis());
+	}
+
+	public void setEfficiencyVisible(boolean visible)
+	{
+		efficiencyCard.setVisible(visible);
+	}
+
+	public void setShowIdle(boolean show)
+	{
+		efficiencyCard.setShowIdle(show);
 	}
 
 	private JComponent tourCard()
@@ -929,14 +1020,17 @@ public class FlipperPanel extends PluginPanel
 		JPanel text = column();
 		stack(text, top, 2);
 		stack(text, suggestionItem, 2);
+		WikiLinks.install(suggestionItem, () -> shownItemId, actions::openUrl);
 		stack(text, suggestionPrice, 2);
 		stack(text, suggestionProfit, 2);
 		stack(text, suggestionReason, 2);
+		stack(text, itemHistoryLine, 2);
 		stack(text, marketWarning, 2);
 		stack(text, explanation, 2);
 		stack(text, suggestionError, 2);
 		suggestionCard.add(text, BorderLayout.CENTER);
 		explanation.setVisible(false);
+		itemHistoryLine.setVisible(false);
 
 		skipButton.addActionListener(e -> actions.skip());
 		whyButton.addActionListener(e ->
@@ -982,11 +1076,12 @@ public class FlipperPanel extends PluginPanel
 		Color color = suggestionAction == null ? theme.muted : theme.action(suggestionAction);
 		suggestionCard.setColors(theme.surface, theme.border);
 		suggestionCard.setStripe(suggestionAction == null ? null : color);
-		actionPill.set(label(suggestionAction), color);
+		actionPill.set(pillText, pillColor == null ? theme.muted : theme.action(pillColor));
 		suggestionItem.setForeground(theme.text);
 		suggestionPrice.setForeground(theme.text);
 		suggestionProfit.setForeground(theme.profit);
 		suggestionReason.setForeground(theme.muted);
+		itemHistoryLine.setForeground(theme.muted);
 		explanation.setForeground(theme.muted);
 		suggestionError.setForeground(theme.loss);
 		marketWarning.setForeground(theme.warning);
@@ -1034,6 +1129,7 @@ public class FlipperPanel extends PluginPanel
 		goalProgress.setFont(FontManager.getRunescapeSmallFont());
 		goalAdvice.setFont(FontManager.getRunescapeSmallFont());
 		goalError.setFont(FontManager.getRunescapeSmallFont());
+		milestoneLine.setFont(FontManager.getRunescapeSmallFont());
 		JPanel head = new JPanel(new BorderLayout(4, 0));
 		head.setOpaque(false);
 		head.add(goalTitle, BorderLayout.CENTER);
@@ -1043,6 +1139,7 @@ public class FlipperPanel extends PluginPanel
 		stack(text, goalBar, 6);
 		stack(text, goalProgress, 4);
 		stack(text, goalAdvice, 4);
+		stack(text, milestoneLine, 4);
 		stack(text, goalError, 4);
 		goalCard.add(text, BorderLayout.CENTER);
 		setGoalButton.addActionListener(e -> askGoal(actions));
@@ -1065,6 +1162,7 @@ public class FlipperPanel extends PluginPanel
 			goalTitle.setForeground(theme.text);
 			goalProgress.setForeground(theme.muted);
 			goalAdvice.setForeground(theme.text);
+			milestoneLine.setForeground(theme.accent);
 			goalError.setForeground(theme.loss);
 		});
 		goalCard.setVisible(false);
@@ -1298,6 +1396,9 @@ public class FlipperPanel extends PluginPanel
 			setGoalButton.setText(g.isLive() ? "Change" : "New goal");
 			clearGoalButton.setVisible(true);
 		}
+		String milestoneText = signedIn && progress.milestones != null ? progress.milestones.line() : "";
+		milestoneLine.setText(milestoneText.isEmpty() ? "" : html(milestoneText));
+		milestoneLine.setVisible(!milestoneText.isEmpty());
 		goalError.setText(progressError == null ? "" : html(progressError));
 		goalError.setVisible(progressError != null);
 		goalCard.setBorder(new EmptyBorder(10, 12, 10, 10));
@@ -1453,9 +1554,19 @@ public class FlipperPanel extends PluginPanel
 	 * @param enabled whether suggestions are turned on in settings
 	 * @param error   why the latest refresh failed, or null
 	 */
+	/** The "You: 12 flips, +3.4M ..." line under the suggestion, or null to hide it. */
+	public void showItemHistory(String line)
+	{
+		boolean show = line != null && !line.isEmpty();
+		itemHistoryLine.setText(show ? html(line) : "");
+		itemHistoryLine.setVisible(show);
+	}
+
 	public void showSuggestion(boolean enabled, Suggestion suggestion, String error)
 	{
 		String id = suggestion == null ? null : suggestion.suggestionId + "|" + suggestion.headline();
+		shownItemId = enabled && suggestion != null && suggestion.itemId != null && !suggestion.is(Suggestion.WAIT)
+			? suggestion.itemId : 0;
 		boolean changed = !Objects.equals(id, shownSuggestionId);
 		shownSuggestionId = id;
 
@@ -1477,9 +1588,10 @@ public class FlipperPanel extends PluginPanel
 		{
 			action = suggestion.itemId == null ? Suggestion.WAIT : suggestion.action;
 			item = suggestion.is(Suggestion.WAIT) || suggestion.name == null ? "Nothing to do right now" : suggestion.name;
-			if ((suggestion.is(Suggestion.BUY) || suggestion.is(Suggestion.SELL)) && suggestion.price != null)
+			if ((suggestion.is(Suggestion.BUY) || suggestion.is(Suggestion.SELL) || suggestion.fix() != null)
+				&& suggestion.price != null && suggestion.quantity != null)
 			{
-				price = String.format("%,d x %s gp", suggestion.quantity == null ? 0 : suggestion.quantity,
+				price = String.format("%s%,d x %s gp", suggestion.fix() == null ? "" : "New: ", suggestion.quantity,
 					QuantityFormatter.formatNumber(suggestion.price));
 			}
 			if (suggestion.expectedProfit != null && suggestion.expectedProfit > 0)
@@ -1498,7 +1610,10 @@ public class FlipperPanel extends PluginPanel
 			}
 		}
 		suggestionAction = action;
-		actionPill.set(label(action), action == null ? theme.muted : theme.action(action));
+		boolean fixed = suggestion != null && enabled && suggestion.fix() != null;
+		pillText = fixed ? suggestion.pillLabel() : label(action);
+		pillColor = fixed ? suggestion.colorAction() : action;
+		actionPill.set(pillText, pillColor == null ? theme.muted : theme.action(pillColor));
 		suggestionItem.setText(html(item));
 		suggestionPrice.setText(price);
 		suggestionPrice.setVisible(!price.isEmpty() && view.shows(PanelLayout.Part.PRICE));
