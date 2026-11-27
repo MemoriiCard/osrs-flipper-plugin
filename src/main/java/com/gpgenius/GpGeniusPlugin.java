@@ -150,6 +150,13 @@ public class GpGeniusPlugin extends Plugin
 	private FlipperApiClient api;
 
 	@Inject
+	private net.runelite.client.eventbus.EventBus eventBus;
+
+	/** The per-character "Leaderboard name" setting, kept in step with the website. */
+	@Inject
+	private com.gpgenius.leaderboard.LeaderboardSync leaderboardSync;
+
+	@Inject
 	private UsageCounter usage;
 
 	@Inject
@@ -246,6 +253,8 @@ public class GpGeniusPlugin extends Plugin
 				loginTick = client.getTickCount() - LOGIN_BURST_TICKS - 1;
 				loadAccount(client.getAccountHash());
 			}
+			eventBus.register(leaderboardSync);
+			leaderboardSync.start();
 		});
 	}
 
@@ -253,6 +262,7 @@ public class GpGeniusPlugin extends Plugin
 	protected void shutDown()
 	{
 		clientToolbar.removeNavigation(navButton);
+		eventBus.unregister(leaderboardSync);
 		SwingUtilities.invokeLater(() ->
 		{
 			if (tradeDashboard != null)

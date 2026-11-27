@@ -80,6 +80,9 @@ offer, and tracks your profit.
   history, charts and CSV export are on the website.
 - **Simple or advanced panel.** Simple shows the next step and your profit. Advanced adds each step's detail,
   Good/Bad ratings and every flip's prices. *Compact panel* hides the chart and flip list.
+- **Leaderboards, your way.** Under *Leaderboards*: show the character you're logged in to under an
+  anonymous name (the default), under its own name, or not at all on the website's profit leaderboards.
+  Each character keeps its own choice, and the website's leaderboards page sets it too.
 - **Your alts don't compete.** Your game accounts are steered to different items unless you allow it.
 
 ## Free, Premium and Pro

@@ -927,6 +927,26 @@ public interface GpGeniusConfig extends Config
 		return 60;
 	}
 
+	@ConfigSection(
+		name = "Leaderboards",
+		description = "How your characters show on the website's profit leaderboards.",
+		position = 90,
+		closedByDefault = true
+	)
+	String leaderboardSection = "leaderboards";
+
+	@ConfigItem(
+		keyName = com.gpgenius.leaderboard.LeaderboardSync.KEY,
+		name = "Leaderboard name",
+		description = "How the character you're logged in to shows on the website's leaderboards. Anonymous unless you choose to show its name. Each character keeps its own choice.",
+		section = leaderboardSection,
+		position = 0
+	)
+	default com.gpgenius.leaderboard.LeaderboardName leaderboardName()
+	{
+		return com.gpgenius.leaderboard.LeaderboardName.ANONYMOUS;
+	}
+
 	@ConfigItem(
 		keyName = "toggleHighlightKeybind",
 		name = "Highlights on/off",
