@@ -33,10 +33,9 @@ jobs:
     # Checks every resolved dependency (build, test and the RuneLite client itself) against the OSV
     # vulnerability database. Gradle writes the exact versions to a lockfile for the scan; the lockfile
     # isn't committed, so the Plugin Hub build is unchanged. Most of the tree is the RuneLite client's own
-    # libraries, which RuneLite updates and the plugin can't change, so a finding shows as a warning here
-    # rather than blocking a merge: fix it if it's in something build.gradle names (Lombok, JUnit).
+    # libraries (Guava, OkHttp, Gson...), which RuneLite updates and the plugin can't change: those are
+    # listed in the run's summary as warnings. The job fails only for what build.gradle names itself.
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -60,4 +59,13 @@ jobs:
           curl -sSfL -o sums "$base/osv-scanner_SHA256SUMS"
           grep ' osv-scanner_linux_amd64$' sums | sha256sum -c -
           chmod +x osv-scanner_linux_amd64
-          ./osv-scanner_linux_amd64 scan source --lockfile=gradle.lockfile
+          rc=0
+          ./osv-scanner_linux_amd64 scan source --lockfile=gradle.lockfile > osv.txt 2>&1 || rc=$?
+          cat osv.txt
+          { echo '### Dependency scan (OSV)'; echo '```'; cat osv.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          # 0: nothing found, 1: findings. Anything else means the scan itself didn't work.
+          [ "$rc" -le 1 ] || { echo "::error::osv-scanner failed (exit $rc)"; exit 1; }
+          if grep -E '\| (org\.projectlombok:lombok|junit:junit|org\.hamcrest:hamcrest-core) ' osv.txt; then
+            echo "::error::A dependency build.gradle names has a known vulnerability: bump it."; exit 1
+          fi
+          [ "$rc" -eq 0 ] || echo "::warning::Findings above are in RuneLite's own libraries; RuneLite updates those."
