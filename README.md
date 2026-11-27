@@ -116,6 +116,11 @@ offer, and tracks your profit.
   every Monday (hide it until next week with *Hide*). The website dashboard has it too, with a share
   link, and you can opt in there to get it as a Discord DM.
 
+- **Clear when the server is down.** If the GP Genius server can't be reached, the panel says since
+  when, whether to check your internet or wait for a restart, and links the status page. Your trades
+  stay on this computer and upload when it's back, and the plugin asks less often (up to every 2
+  minutes) until it answers.
+
 ## Free, Premium and Pro
 
 Plans differ in how fresh prices are, how often suggestions refresh and features. No plan is suggested a flip before another.
@@ -131,12 +136,17 @@ The side panel shows your plan and how often it refreshes; the plugin follows th
 Signing in is optional, but suggestions need it. Before anything is sent, the side panel shows what
 is shared and the player clicks **Agree & sign in**; until then flips are tracked on this computer
 only. When signed in, the plugin sends your GE offers, the
-trades it tracked, the coins in your inventory, your character name and RuneLite's account ID to the
+trades it tracked, the coins in your inventory and the items it saw you buy that are still there, which
+panel features you use (counts only), your character name and RuneLite's account ID to the
 GP Genius server, which stores the account ID only in a scrambled form. It never sees your Jagex
 login or anything about other players. Turn off "Sync flips to website" to keep trades on your
 computer only. Tracked trades are also saved locally in `.runelite/gp-genius/`. Each trade carries the GE slot it was
 in, for GP per hour by slot. The first-run guide counts the coins in your bank on this computer
 only, to fill in your cash stack; that count is never sent.
+
+**Report a problem** (under the account card) sends what you type, scrubbed the same way, and, if you
+leave the box ticked, the errors the plugin kept; you get a reference to quote in Discord. Signed out,
+the same button opens the help page instead.
 
 When something goes wrong (a request fails, the trade file can't be saved), the plugin keeps a short
 description of its last 10 errors and sends them with its next check-in, so support sees the problem on

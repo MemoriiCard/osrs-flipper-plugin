@@ -75,6 +75,52 @@ public class FlipperApiClient
 		}, message -> errors.restore(batch));
 	}
 
+	/**
+	 * "Report a problem": what the player typed, and with includeErrors the errors kept since the last
+	 * report (scrubbed like any error report). onSuccess gets the server's thank-you with a reference.
+	 */
+	public void reportProblem(String accountHash, String version, String what, boolean includeErrors,
+		Consumer<String> onSuccess, Consumer<String> onError)
+	{
+		String text = what == null ? "" : ErrorLog.scrub(what.trim());
+		if (text.length() < 3)
+		{
+			onError.accept("Say in a few words what went wrong.");
+			return;
+		}
+		List<ErrorLog.Entry> batch = includeErrors ? errors.drain() : java.util.Collections.<ErrorLog.Entry>emptyList();
+		JsonObject body = new JsonObject();
+		if (accountHash != null)
+		{
+			body.addProperty("account_hash", accountHash);
+		}
+		body.addProperty("plugin_version", version);
+		body.addProperty("what", text.length() > 2000 ? text.substring(0, 2000) : text);
+		com.google.gson.JsonArray list = new com.google.gson.JsonArray();
+		for (ErrorLog.Entry e : batch)
+		{
+			JsonObject item = new JsonObject();
+			item.addProperty("kind", e.kind);
+			item.addProperty("message", e.message);
+			item.addProperty("count", e.count);
+			list.add(item);
+		}
+		body.add("errors", list);
+		auth.send("/v1/plugin/report", gson.toJson(body), response ->
+		{
+			if (!response.isSuccessful())
+			{
+				errors.restore(batch);
+			}
+			read(response, ProblemReply.class, reply -> onSuccess.accept(reply == null || reply.message == null
+				? "Thanks, we've got it." : reply.message), onError);
+		}, message ->
+		{
+			errors.restore(batch);
+			onError.accept(message);
+		});
+	}
+
 	public void suggest(SuggestionRequest body, Consumer<Suggestion> onSuccess, Consumer<String> onError)
 	{
 		post("/v1/suggestion", body, Suggestion.class, s ->
@@ -376,6 +422,13 @@ public class FlipperApiClient
 	private void logOnly(String message)
 	{
 		log.debug("Background request failed: {}", message);
+	}
+
+	/** Reply from /v1/plugin/report. */
+	public static class ProblemReply
+	{
+		public String reference;
+		public String message;
 	}
 
 	/** Reply from /v1/explain. */

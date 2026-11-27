@@ -266,7 +266,8 @@ public class SuggestionController
 		String tier = current == null ? null : current.tier;
 		long refresh = current == null ? REFRESH_MILLIS : Tier.refreshMillis(current.refreshSeconds);
 		boolean due = dirty ? now - lastRequestMillis >= Tier.minGapMillis(tier) : now - lastRequestMillis >= refresh;
-		if (!due)
+		// While the server is down, ask less and less often (5s up to 2 min) instead of on every change.
+		if (!due || !auth.health().mayTry(now))
 		{
 			return;
 		}

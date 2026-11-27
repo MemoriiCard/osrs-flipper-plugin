@@ -62,3 +62,12 @@ Play as you normally would and flip with it. Things especially worth reporting:
 
 Your trades sync to the website, so the dashboard there shows exactly what happened. The website's
 **Help** page answers the common questions.
+
+## Offer flows without the game
+
+`src/test/java/com/gpgenius/sim/` is a pretend Grand Exchange (eight slots, coins, inventory, fills at
+or better than the offer price, cancels, collecting, and RuneLite's EMPTY burst at login) and a pretend
+trade-upload server that can be down or lose its reply. `OfferFlowTest` drives the plugin's real
+tracking, sync and request code through full flips, partial fills, logging out mid-offer, an outage
+with a resend, and 200 random sessions, checking the books against what really traded. It runs with
+`./gradlew build` like every other test.
