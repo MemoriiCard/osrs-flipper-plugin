@@ -834,6 +834,18 @@ public interface GpGeniusConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "sendErrorReports",
+		name = "Send error reports",
+		description = "When something goes wrong (a request fails, a file can't be saved), send a short description to GP Genius so support can see it in your ticket. Never includes your email, IP address, file-path user name or any code. Needs sign-in.",
+		section = trackingSection,
+		position = 1
+	)
+	default boolean sendErrorReports()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "recentFlipCount",
 		name = "Recent flips shown",
 		description = "How many recent flips the side panel lists in the advanced view.",

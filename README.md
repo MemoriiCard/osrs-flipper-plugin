@@ -135,6 +135,12 @@ computer only. Tracked trades are also saved locally in `.runelite/gp-genius/`. 
 in, for GP per hour by slot. The first-run guide counts the coins in your bank on this computer
 only, to fill in your cash stack; that count is never sent.
 
+When something goes wrong (a request fails, the trade file can't be saved), the plugin keeps a short
+description of its last 10 errors and sends them with its next check-in, so support sees the problem on
+the player's ticket and staff are alerted when many players hit the same one. Emails, IP addresses,
+user names in file paths and anything that looks like a code are removed first. Turn off "Send error
+reports" to stop it.
+
 ## Rules this plugin follows
 
 It never clicks, types, or acts in game for you. Highlights and colours only draw; the hotkey fills a
