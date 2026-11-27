@@ -468,6 +468,10 @@ public class SuggestionController
 		s.profileId = profileId == null || profileId.trim().isEmpty() ? null : profileId.trim();
 		s.preset = com.gpgenius.setup.Preset.byId(com.gpgenius.setup.Preset.BUILT_IN, config.setupPreset()) == null
 			? null : config.setupPreset();
+		s.slotRoles = config.slotRoles();
+		s.longSlots = config.longSlots();
+		s.longTimeframeMinutes = config.longCheckIn().minutes;
+		s.longRisk = config.longRisk().name().toLowerCase(Locale.ROOT);
 		return s;
 	}
 
