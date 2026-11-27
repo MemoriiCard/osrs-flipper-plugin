@@ -88,6 +88,11 @@ public final class Profiles
 		public List<String> soundCues;
 		@SerializedName("sound_cue_volume")
 		public Integer soundCueVolume;
+		/** PanelLayout name, and for Custom the PanelLayout.Part names it shows. */
+		@SerializedName("panel_layout")
+		public String panelLayout;
+		@SerializedName("panel_parts")
+		public List<String> panelParts;
 	}
 
 	/** POST /v1/profiles */

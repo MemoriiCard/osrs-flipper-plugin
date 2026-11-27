@@ -60,7 +60,22 @@ public final class RequestBuilder
 		account.reservedSlots = settings.reservedSlots;
 		account.sellOnly = settings.sellOnly;
 		account.skipItemIds = new ArrayList<>(skipped);
+		request.slotRoles = slotRoles(settings);
 		return request;
+	}
+
+	/** The opt-in long-hold slots, or null when slot roles are off. Values are clamped to what the server takes. */
+	static SuggestionRequest.SlotRoles slotRoles(Settings settings)
+	{
+		if (!settings.slotRoles || settings.longSlots <= 0)
+		{
+			return null;
+		}
+		SuggestionRequest.SlotRoles roles = new SuggestionRequest.SlotRoles();
+		roles.longSlots = Math.min(7, settings.longSlots);
+		roles.timeframeMinutes = Math.max(60, Math.min(1440, settings.longTimeframeMinutes));
+		roles.risk = settings.longRisk == null ? "low" : settings.longRisk;
+		return roles;
 	}
 
 	/**
@@ -151,6 +166,11 @@ public final class RequestBuilder
 		/** The fast-start preset or saved profile in use; null for neither. */
 		public String preset;
 		public String profileId;
+		/** Slot roles (opt-in): the last longSlots slots hold long flips on their own check-in time and risk. */
+		public boolean slotRoles;
+		public int longSlots = 2;
+		public int longTimeframeMinutes = 480;
+		public String longRisk = "low";
 	}
 
 	/** Item IDs used when reading the inventory. */

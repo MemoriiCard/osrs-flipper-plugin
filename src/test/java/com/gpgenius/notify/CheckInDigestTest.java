@@ -115,4 +115,29 @@ public class CheckInDigestTest
 		assertEquals("-1.2m", CheckInDigest.signed(-1_250_000));
 		assertEquals("+2b", CheckInDigest.signed(2_000_000_000L));
 	}
+
+	@Test
+	public void notesWaitForTheWindowUnlessAnUrgentOneWasLetThrough()
+	{
+		CheckInDigest digest = new CheckInDigest();
+		digest.seen(T0);
+		digest.note("Sell now: Abyssal whip has reached your 1,600,000 target", false, T0 + MINUTE);
+		assertFalse(digest.due(T0 + 5 * MINUTE, WINDOW, false));
+		assertTrue(digest.due(T0 + WINDOW, WINDOW, false));
+		assertEquals("GP Genius: Sell now: Abyssal whip has reached your 1,600,000 target.", digest.drain(T0 + WINDOW));
+
+		digest.note("Sell now: buyers pay 1,610,000 for Abyssal whip", true, T0 + WINDOW + MINUTE);
+		// Urgent: goes out once things that happen together have settled, not a whole window later.
+		assertFalse(digest.due(T0 + WINDOW + MINUTE, WINDOW, false));
+		assertTrue(digest.due(T0 + WINDOW + 2 * MINUTE, WINDOW, false));
+		// Quiet hours still win.
+		assertFalse(digest.due(T0 + WINDOW + 2 * MINUTE, WINDOW, true));
+		digest.drain(T0 + WINDOW + 2 * MINUTE);
+
+		for (int i = 0; i < 5; i++)
+		{
+			digest.note("Dump " + i, false, T0 + 3 * WINDOW);
+		}
+		assertEquals("GP Genius: Dump 0. Dump 1. Dump 2. +2 more in the panel.", digest.drain(T0 + 4 * WINDOW));
+	}
 }
