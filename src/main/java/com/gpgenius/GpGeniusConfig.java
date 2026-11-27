@@ -179,7 +179,7 @@ public interface GpGeniusConfig extends Config
 	@ConfigSection(
 		name = "Hotkeys",
 		description = "Optional keys for panel actions. All are off until you set them. Kept on this computer only.",
-		position = 11,
+		position = 12,
 		closedByDefault = true
 	)
 	String hotkeySection = "hotkeys";
@@ -209,7 +209,7 @@ public interface GpGeniusConfig extends Config
 	@ConfigSection(
 		name = "Connection",
 		description = "Where the plugin gets suggestions from",
-		position = 12,
+		position = 13,
 		closedByDefault = true
 	)
 	String connectionSection = "connection";
@@ -1048,7 +1048,7 @@ public interface GpGeniusConfig extends Config
 	@ConfigSection(
 		name = "Leaderboards",
 		description = "How your characters show on the website's profit leaderboards.",
-		position = 90,
+		position = 11,
 		closedByDefault = true
 	)
 	String leaderboardSection = "leaderboards";
