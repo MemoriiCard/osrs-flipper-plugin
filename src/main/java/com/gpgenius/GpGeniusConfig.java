@@ -10,6 +10,7 @@ import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import com.gpgenius.notify.SoundCue;
+import com.gpgenius.ui.PanelLayout;
 import com.gpgenius.ui.HighlightPalette;
 import com.gpgenius.ui.TextScale;
 import com.gpgenius.ui.Theme;
@@ -258,12 +259,59 @@ public interface GpGeniusConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "panelLayout",
+		name = "Panel layout",
+		description = "Detailed shows everything. Compact drops the price chart and flip list. Minimal is just the next step and your profit. Custom shows the parts you pick below. Compact panel, when on, means Compact.",
+		position = -1
+	)
+	default PanelLayout panelLayout()
+	{
+		return PanelLayout.DETAILED;
+	}
+
+	@ConfigItem(
+		keyName = "panelParts",
+		name = "Panel parts (Custom)",
+		description = "With the Custom layout: which cards and columns the panel shows. The next step itself always shows.",
+		position = -1
+	)
+	default Set<PanelLayout.Part> panelParts()
+	{
+		return EnumSet.of(PanelLayout.Part.PRICE, PanelLayout.Part.EST_PROFIT, PanelLayout.Part.DETAILS,
+			PanelLayout.Part.LIMITS, PanelLayout.Part.PROFIT, PanelLayout.Part.FLIPS, PanelLayout.Part.FLIP_QUANTITY);
+	}
+
+	@ConfigItem(
+		keyName = "sellCues",
+		name = "Sell-now highlight",
+		description = "Outline items in your inventory that are worth selling now: the price reached your target, buyers are paying it right now, or the margin is about to drop. You still sell them yourself.",
+		section = offerSection,
+		position = 20
+	)
+	default boolean sellCues()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "efficiencyIdle",
 		name = "Idle slots and unused cash",
 		description = "On the GP per hour card, show how long each GE slot sat idle since you logged in and how many of your coins no offer is using.",
 		position = -1
 	)
 	default boolean efficiencyIdle()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "urgentNudges",
+		name = "Urgent reminders early",
+		description = "Everything else waits for your check-in reminder. When on, a real chance (buyers paying your target now, a dump, an offer that needs updating) may send that reminder early: at most twice per check-in and 5 minutes apart, never in quiet hours.",
+		section = reminderSection,
+		position = 20
+	)
+	default boolean urgentNudges()
 	{
 		return true;
 	}
@@ -1007,5 +1055,161 @@ public interface GpGeniusConfig extends Config
 	default Keybind toggleCompactKeybind()
 	{
 		return Keybind.NOT_SET;
+	}
+
+	@ConfigSection(
+		name = "Slot roles",
+		description = "Opt in: keep your last few GE slots for long, patient flips while the rest flip fast",
+		position = 10,
+		closedByDefault = true
+	)
+	String slotRoleSection = "slotRoles";
+
+	@ConfigItem(
+		keyName = "slotRoles",
+		name = "Use slot roles",
+		description = "Keep the last few GE slots for long holds with their own check-in time and risk. The other slots flip on your normal settings.",
+		section = slotRoleSection,
+		position = 0
+	)
+	default boolean slotRoles()
+	{
+		return false;
+	}
+
+	@Range(min = 1, max = 7)
+	@ConfigItem(
+		keyName = "longSlots",
+		name = "Long-hold slots",
+		description = "How many slots, counted from the last one, are for long holds.",
+		section = slotRoleSection,
+		position = 1
+	)
+	default int longSlots()
+	{
+		return 2;
+	}
+
+	@ConfigItem(
+		keyName = "longCheckIn",
+		name = "Long-hold check-in",
+		description = "How often you come back to the long-hold slots. At least every hour.",
+		section = slotRoleSection,
+		position = 2
+	)
+	default CheckIn longCheckIn()
+	{
+		return CheckIn.HOURS_8;
+	}
+
+	@ConfigItem(
+		keyName = "longRisk",
+		name = "Long-hold risk",
+		description = "Risk level for the long-hold slots.",
+		section = slotRoleSection,
+		position = 3
+	)
+	default RiskLevel longRisk()
+	{
+		return RiskLevel.LOW;
+	}
+
+	@ConfigSection(
+		name = "Sets & decanting",
+		description = "Opt in (premium): armour set and potion decant flips, shown only when they look solid",
+		position = 11,
+		closedByDefault = true
+	)
+	String conversionSection = "conversions";
+
+	@ConfigItem(
+		keyName = "conversions",
+		name = "Show set & decant flips",
+		description = "Premium. Every few minutes, look for armour sets to pack or unpack and potions to decant at the GE for a profit. Only shown when every item trades steadily and the margin has held for hours.",
+		section = conversionSection,
+		position = 0
+	)
+	default boolean conversions()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "conversionMinProfit",
+		name = "Minimum profit",
+		description = "Only show set and decant flips that make at least this much after GE tax.",
+		section = conversionSection,
+		position = 1
+	)
+	default int conversionMinProfit()
+	{
+		return 50_000;
+	}
+
+	@ConfigItem(
+		keyName = "conversionNotification",
+		name = "Notify on new ones",
+		description = "Notification when a new set or decant flip shows up.",
+		section = conversionSection,
+		position = 2
+	)
+	default Notification conversionNotification()
+	{
+		return Notification.OFF;
+	}
+
+	@ConfigSection(
+		name = "Watchlist",
+		description = "Items to watch with buy and sell target prices. Free: 3 items, premium: up to 100.",
+		position = 12,
+		closedByDefault = true
+	)
+	String watchlistSection = "watchlist";
+
+	@ConfigItem(
+		keyName = "watchlist",
+		name = "Watched items",
+		description = "One item per line: name (or item ID), buy target, sell target. For example: Abyssal whip, 1.4m, 1.6m. Leave a target out or put 0 if you don't need it.",
+		section = watchlistSection,
+		position = 0
+	)
+	default String watchlist()
+	{
+		return "";
+	}
+
+	@ConfigItem(
+		keyName = "watchlistNotification",
+		name = "Notify on target",
+		description = "Notification when a watched item's price reaches your buy or sell target.",
+		section = watchlistSection,
+		position = 1
+	)
+	default Notification watchlistNotification()
+	{
+		return Notification.ON;
+	}
+
+	@ConfigItem(
+		keyName = "weeklyRecap",
+		name = "Show weekly recap",
+		description = "Show last week's profit, best item and goal progress at the top of the panel. Hide it with the X until next week.",
+		section = trackingSection,
+		position = 50
+	)
+	default boolean weeklyRecap()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "recapHiddenWeek",
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default String recapHiddenWeek()
+	{
+		return "";
 	}
 }

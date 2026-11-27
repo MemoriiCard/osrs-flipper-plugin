@@ -35,6 +35,20 @@ public class SuggestionRequest
 	/** Let the player's goal pick the preset and check-in rhythm while it runs (when the goal allows it). */
 	@SerializedName("follow_goal")
 	public boolean followGoal = true;
+	/** Opt-in: the last few slots are kept for long holds. Null (left out) means every slot is the same. */
+	@SerializedName("slot_roles")
+	public SlotRoles slotRoles;
+
+	public static class SlotRoles
+	{
+		/** How many of the eight slots, counted from the last, hold long flips. 1 to 7. */
+		@SerializedName("long_slots")
+		public int longSlots;
+		/** The check-in time for long-hold slots, 60 to 1440 minutes. */
+		@SerializedName("timeframe_minutes")
+		public int timeframeMinutes;
+		public String risk = "low";
+	}
 
 	public static class Profile
 	{

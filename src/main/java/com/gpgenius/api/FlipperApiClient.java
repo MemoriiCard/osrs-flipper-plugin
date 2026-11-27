@@ -134,6 +134,22 @@ public class FlipperApiClient
 		get(path, Alerts.class, onSuccess, onError);
 	}
 
+	/** Premium, opt-in: set packing and unpacking and potion decanting that clear minProfit. */
+	public void conversions(String accountHash, long coins, long minProfit, int timeframeMinutes, boolean members,
+		Consumer<Conversions> onSuccess, Consumer<String> onError)
+	{
+		String path = "/v1/conversions?account_hash=" + accountHash + "&coins=" + Math.max(0, Math.min(Integer.MAX_VALUE, coins))
+			+ "&min_profit=" + Math.max(0, Math.min(Integer.MAX_VALUE, minProfit))
+			+ "&timeframe_minutes=" + Math.max(5, Math.min(1440, timeframeMinutes)) + "&members=" + members;
+		get(path, Conversions.class, onSuccess, onError);
+	}
+
+	/** Last week's recap: profit, flips, tax, best item and goal progress. */
+	public void recap(Consumer<Recap> onSuccess, Consumer<String> onError)
+	{
+		get("/v1/recap", Recap.class, onSuccess, onError);
+	}
+
 	public void latestPrices(Collection<Integer> itemIds, Consumer<List<MarketPrice>> onSuccess, Consumer<String> onError)
 	{
 		StringBuilder path = new StringBuilder("/v1/prices/latest");

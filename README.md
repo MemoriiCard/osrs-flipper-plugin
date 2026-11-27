@@ -90,6 +90,18 @@ offer, and tracks your profit.
 - **Simple or advanced panel.** Simple shows the next step and your profit. Advanced adds each step's detail,
   Good/Bad ratings and every flip's prices. *Compact panel* hides the chart and flip list.
 - **Your alts don't compete.** Your game accounts are steered to different items unless you allow it.
+- **Watchlist.** List items with a buy and a sell target under *Watchlist* in the settings, for example
+  `Abyssal whip, 1.4m, 1.6m`. The panel shows each item's latest prices and marks a target once it's
+  reached, with one notification per crossing. Free watches 3 items, Premium up to 100.
+- **Slot roles (opt-in).** Keep your last few GE slots for long, patient flips with their own check-in
+  time and risk, while the others flip on your normal settings. Suggestions for those slots say
+  *Long-hold slot*.
+- **Sets & decanting (Premium, opt-in).** Armour sets to pack or unpack and potions to decant at the GE,
+  shown only when every item trades steadily, the margin has held for hours and the profit after tax
+  clears your own minimum. You still place each buy, exchange at the NPC and place each sell yourself.
+- **Weekly recap.** Last week's profit, flips, tax, best item and goal progress at the top of the panel
+  every Monday (hide it until next week with *Hide*). The website dashboard has it too, with a share
+  link, and you can opt in there to get it as a Discord DM.
 
 ## Free, Premium and Pro
 

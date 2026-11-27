@@ -28,6 +28,8 @@ public class GrandExchangeWidgets
 	private static final int SETUP_PRICE_VARP = 5753;
 	/** The GE-side inventory shown while the exchange is open. */
 	private static final int GE_INVENTORY_GROUP = 467;
+	/** The normal inventory tab. */
+	private static final int INVENTORY_GROUP = 149;
 
 	private static final int SLOT_CHILD_OFFSET = 7;
 	private static final int OFFER_CONTAINER_CHILD = 26;
@@ -114,7 +116,25 @@ public class GrandExchangeWidgets
 	/** The item in the GE-side inventory, noted or not. */
 	public Widget inventoryItem(int unnotedItemId)
 	{
-		Widget inventory = client.getWidget(GE_INVENTORY_GROUP, 0);
+		return findItem(client.getWidget(GE_INVENTORY_GROUP, 0), unnotedItemId);
+	}
+
+	/**
+	 * The item in whichever inventory is on screen: the GE's own while the exchange is open, otherwise
+	 * the normal inventory tab. Null when it isn't showing (another tab is open, or a bank).
+	 */
+	public Widget visibleInventoryItem(int unnotedItemId)
+	{
+		if (isOpen())
+		{
+			return inventoryItem(unnotedItemId);
+		}
+		Widget inventory = client.getWidget(INVENTORY_GROUP, 0);
+		return inventory == null || inventory.isHidden() ? null : findItem(inventory, unnotedItemId);
+	}
+
+	private Widget findItem(Widget inventory, int unnotedItemId)
+	{
 		if (inventory == null || inventory.getDynamicChildren() == null)
 		{
 			return null;
