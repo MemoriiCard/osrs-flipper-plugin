@@ -34,8 +34,12 @@ offer, and tracks your profit.
   are labelled and never count towards how accurate suggestions are.
 - **Dump alerts (premium).** A notification when an item is sold far below its usual price, with the
   buy price, quantity and expected profit. "Use" makes it the current suggestion.
-- **Stale offer repricing.** An offer that sits longer than your check-in window at a price the market
-  has left gets flagged, with the price to rebuy or relist at.
+- **Offer upkeep.** When the server no longer expects an offer to fill at its price in reasonable time,
+  the suggestion says the better use of its slot: **RAISE** a buy (abort it, then the plugin walks you
+  through rebuying at the new price), **SELL PART** (stop buying and sell what it bought), **LOWER** a
+  sell to what buyers pay, or **CLOSE** a sell that would only fill at a loss and keep the items until
+  the price recovers. The slot is outlined in the colour of what comes next with a "+", "-", "$" or "X"
+  badge. Turn it off with "Offer upkeep tips"; the plain stale-offer abort still applies.
 - **Themes.** Grand Exchange, RuneLite, Matrix, Amethyst, Neon Cyan and Dragon. Every theme is dark
   and contrast-checked, and the in-game highlight follows the theme.
 - **Highlights you can't miss.** Under *Highlight look*: red-green safe, blue-yellow safe, high
@@ -49,7 +53,13 @@ offer, and tracks your profit.
   default and rate limited.
 - **Optional hotkeys.** Highlights on/off, refresh suggestion, next profile, simple/advanced view and
   compact panel. All unset by default and kept per computer.
+- **Milestones and streaks.** The goal card shows your top profit badge (1M up to 10B), the next one and
+  your streak of profitable days, and a notification says when you reach a new one ("Milestone
+  reached"). Share badges and choose a Discord rank role from the website dashboard.
 - **Price chart.** Day, week and month charts of the item you're setting up or the suggested item.
+- **Your history with the item.** One line under the suggestion with your own record for that item, such
+  as "You: 12 flips, +3.4M, 83% wins, 85,000 gp each, avg 41 min". The website dashboard has the full
+  page (click any item). Turn it off with "My history with the item".
 - **Offer slot colours.** Active offers are outlined green while their price still fills and red,
   dashed and marked "!" once the market has moved past it (colours follow *Highlight colours*).
 - **Market warnings.** When an item's prices are unstable, or a game update or event is due, the

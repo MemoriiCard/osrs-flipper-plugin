@@ -196,6 +196,12 @@ public class FlipperApiClient
 	}
 
 	/** Profit at a glance, the goal and the suggested stack. accountHash may be null. */
+	/** The player's own history with one item, for the "You: ..." line under the suggestion. */
+	public void itemHistory(int itemId, Consumer<ItemHistory> onSuccess, Consumer<String> onError)
+	{
+		get("/v1/items/" + itemId + "/history", ItemHistory.class, onSuccess, onError);
+	}
+
 	public void progress(String accountHash, Consumer<Progress> onSuccess, Consumer<String> onError)
 	{
 		String path = "/v1/progress";

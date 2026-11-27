@@ -193,6 +193,8 @@ public class GpGeniusPlugin extends Plugin
 	private List<Suggestion.BuyLimit> shownLimits;
 	private boolean importInFlight;
 	private ChartController chart;
+	private com.gpgenius.history.ItemHistoryController itemHistory;
+	private final com.gpgenius.notify.MilestoneWatch milestones = new com.gpgenius.notify.MilestoneWatch();
 	private NavigationButton navButton;
 	private TradeStore store;
 
@@ -250,6 +252,10 @@ public class GpGeniusPlugin extends Plugin
 		suggestions.setOnChange(this::updateSuggestionPanel);
 		chart = new ChartController(api, clientThread::invokeLater);
 		chart.setOnChange(this::updateChartPanel);
+		itemHistory = new com.gpgenius.history.ItemHistoryController((id, done) -> api.itemHistory(id,
+			h -> clientThread.invokeLater(() -> done.accept(h)),
+			message -> clientThread.invokeLater(() -> done.accept(null))));
+		itemHistory.setOnChange(this::updateSuggestionPanel);
 		overlayManager.add(highlightOverlay);
 		overlayManager.add(sellCueOverlay);
 		SwingUtilities.invokeLater(() -> panel.setView(layoutView()));
@@ -382,6 +388,7 @@ public class GpGeniusPlugin extends Plugin
 			prices.want(pricedItems());
 			watchOutbid();
 			chart.tick(config.priceChart() ? chartItem() : null, now);
+			itemHistory.tick(config.itemHistoryLine() ? chartItem() : null, now);
 			if (config.dumpAlerts() && me != null && me.accountPremium() && accountHash != -1)
 			{
 				alerts.poll(accountHash, coins(), config.minProfit(),
@@ -404,6 +411,8 @@ public class GpGeniusPlugin extends Plugin
 		else
 		{
 			chart.tick(null, now);
+			// Signed out or another character: forget the last player's records.
+			itemHistory.clear();
 		}
 		updateGuard();
 		checkIn(now);
@@ -660,9 +669,11 @@ public class GpGeniusPlugin extends Plugin
 			digest.suggestion(current.action, current.name, current.headline(), config.remindReprice(),
 				config.remindNextStep(), System.currentTimeMillis());
 		}
+		final String historyLine = enabled && itemHistory != null && config.itemHistoryLine() ? itemHistory.line() : null;
 		SwingUtilities.invokeLater(() ->
 		{
 			panel.showSuggestion(enabled, current, error);
+			panel.showItemHistory(historyLine);
 			panel.showPlan(plan);
 			panel.showSlots(slotPlan);
 			panel.showOvernight(overnightAvailable, overnight, overnightHours);
@@ -1029,6 +1040,19 @@ public class GpGeniusPlugin extends Plugin
 	/** Client thread. */
 	private void showProgress(Progress result, String error)
 	{
+		if (result == null)
+		{
+			milestones.reset();
+		}
+		else if (error == null)
+		{
+			String badge = milestones.update(result.milestones);
+			Notification n = config.milestoneNotification();
+			if (badge != null && n != null && n.isEnabled())
+			{
+				notifier.notify(sounds(n), "Milestone reached: " + badge + "! Share it from your GP Genius dashboard.");
+			}
+		}
 		progress = result;
 		SwingUtilities.invokeLater(() -> panel.showProgress(result, error));
 	}

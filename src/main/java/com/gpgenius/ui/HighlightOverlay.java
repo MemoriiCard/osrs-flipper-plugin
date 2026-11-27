@@ -103,7 +103,7 @@ public class HighlightOverlay extends Overlay
 				long value = NextStep.promptValue(s, screen, price);
 				if (value > 0)
 				{
-					draw(g, ge.promptInput(), null, colors.next, false, StepCallout.prompt(price, value), style, now);
+					draw(g, ge.promptInput(), null, colors.next, null, StepCallout.prompt(price, value), style, now);
 				}
 			}
 			return null;
@@ -114,25 +114,28 @@ public class HighlightOverlay extends Overlay
 		switch (step)
 		{
 			case BUY_BUTTON:
-				draw(g, ge.buyButton(screen.firstEmptySlot), null, colors.next, false, label, style, now);
+				draw(g, ge.buyButton(screen.firstEmptySlot), null, colors.next, null, label, style, now);
 				break;
 			case SEARCH_RESULT:
-				draw(g, ge.searchResult(s.itemId, s.name), null, colors.next, false, label, style, now);
+				draw(g, ge.searchResult(s.itemId, s.name), null, colors.next, null, label, style, now);
 				break;
 			case INVENTORY_ITEM:
-				draw(g, ge.inventoryItem(s.itemId), null, colors.next, false, label, style, now);
+				draw(g, ge.inventoryItem(s.itemId), null, colors.next, null, label, style, now);
 				break;
 			case SLOT:
-				draw(g, ge.slot(s.slot), null, colors.abort, true, label, style, now);
+				// An upkeep fix is drawn in the colour of what follows (buy or sell); a plain abort in red.
+				Color slotColor = s.fix() == null || Suggestion.FIX_CLOSE.equals(s.fix()) ? colors.abort
+					: Suggestion.FIX_RAISE.equals(s.fix()) ? colors.next : colors.good;
+				draw(g, ge.slot(s.slot), null, slotColor, StepCallout.slotBadge(s), label, style, now);
 				break;
 			case SET_PRICE:
-				draw(g, ge.setPriceButton(), SET_BUTTON_AREA, colors.next, false, label, style, now);
+				draw(g, ge.setPriceButton(), SET_BUTTON_AREA, colors.next, null, label, style, now);
 				break;
 			case SET_QUANTITY:
-				draw(g, ge.setQuantityButton(), SET_BUTTON_AREA, colors.next, false, label, style, now);
+				draw(g, ge.setQuantityButton(), SET_BUTTON_AREA, colors.next, null, label, style, now);
 				break;
 			case CONFIRM:
-				draw(g, ge.confirmButton(), null, colors.next, false, label, style, now);
+				draw(g, ge.confirmButton(), null, colors.next, null, label, style, now);
 				break;
 			case NONE:
 			default:
@@ -199,7 +202,7 @@ public class HighlightOverlay extends Overlay
 		g.drawString(line, x, y);
 	}
 
-	private void draw(Graphics2D g, Widget widget, Rectangle part, Color color, boolean abort, String label,
+	private void draw(Graphics2D g, Widget widget, Rectangle part, Color color, String badge, String label,
 		HighlightStyle style, long now)
 	{
 		if (widget == null || widget.isHidden())
@@ -239,9 +242,9 @@ public class HighlightOverlay extends Overlay
 		g.setColor(Theme.withAlpha(color, style.outlineAlpha(now)));
 		g.setStroke(new BasicStroke(t));
 		g.drawRect(area.x + t / 2, area.y + t / 2, area.width - t, area.height - t);
-		if (abort)
+		if (badge != null)
 		{
-			drawBadge(g, area, "X", color);
+			drawBadge(g, area, badge, color);
 		}
 		if (label != null && config.highlightLabel())
 		{

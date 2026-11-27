@@ -55,6 +55,9 @@ public class SuggestionController
 	private final SlotPlanState slotPlan = new SlotPlanState();
 	private final OvernightState overnight = new OvernightState();
 	private final CharacterGuard character = new CharacterGuard();
+	private final RaiseFollowUp raise = new RaiseFollowUp();
+	/** The slots as of the last tick, so a reply can tell whether a raised offer was aborted meanwhile. */
+	private Map<Integer, OfferSnapshot> lastSlots;
 	/** Whether the last tick had overnight mode on, to notice when it switches itself off. */
 	private boolean wasOvernight;
 
@@ -99,6 +102,7 @@ public class SuggestionController
 		error = null;
 		inFlight = false;
 		dirty = true;
+		raise.clear();
 		skips.clear();
 		plan.reset();
 		slotPlan.reset();
@@ -241,6 +245,11 @@ public class SuggestionController
 			return;
 		}
 		long now = System.currentTimeMillis();
+		lastSlots = slots;
+		if (showRebuy(raise.ready(slots), now))
+		{
+			return;
+		}
 		boolean night = overnight.active(now);
 		if (night != wasOvernight)
 		{
@@ -268,6 +277,7 @@ public class SuggestionController
 		request.displayName = nameNow;
 		character.expect(hashNow, nameNow);
 		request.profile.allowSharedItems = config.allowSharedItems();
+		request.profile.offerUpkeep = config.offerUpkeep();
 		request.plan = plan.wanted();
 		request.plannedItemIds = plan.plannedItemIds();
 		if (night)
@@ -331,10 +341,16 @@ public class SuggestionController
 			onChange.run();
 			return;
 		}
+		if (suggestion != null && showRebuy(raise.ready(lastSlots), System.currentTimeMillis()))
+		{
+			// The player aborted the offer to raise while this reply was on its way: rebuy first.
+			return;
+		}
 		if (suggestion != null)
 		{
 			current = suggestion;
 			error = null;
+			raise.shown(suggestion);
 			plan.onResult(suggestion.plan);
 		}
 		else
@@ -343,6 +359,23 @@ public class SuggestionController
 			error = message;
 		}
 		onChange.run();
+	}
+
+	/** Shows the rebuy after an aborted raise, held until its offer is placed or a few minutes pass. */
+	private boolean showRebuy(Suggestion rebuy, long now)
+	{
+		if (rebuy == null)
+		{
+			return false;
+		}
+		generation++;
+		inFlight = false;
+		current = rebuy;
+		error = null;
+		dirty = true;
+		pinnedUntil = now + RaiseFollowUp.PIN_MILLIS;
+		onChange.run();
+		return true;
 	}
 
 	/** Makes a dump alert the current suggestion, so highlights and hotkeys walk the player through it. */
@@ -374,7 +407,10 @@ public class SuggestionController
 		}
 		for (GrandExchangeOffer offer : client.getGrandExchangeOffers())
 		{
-			if (offer != null && offer.getState() != GrandExchangeOfferState.EMPTY && offer.getItemId() == itemId)
+			GrandExchangeOfferState state = offer == null ? null : offer.getState();
+			// An aborted offer waiting to be collected doesn't count: that is the one being replaced.
+			if (state != null && state != GrandExchangeOfferState.EMPTY && state != GrandExchangeOfferState.CANCELLED_BUY
+				&& state != GrandExchangeOfferState.CANCELLED_SELL && offer.getItemId() == itemId)
 			{
 				return true;
 			}

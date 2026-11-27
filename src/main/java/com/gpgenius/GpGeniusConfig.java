@@ -462,6 +462,18 @@ public interface GpGeniusConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "offerUpkeep",
+		name = "Offer upkeep tips",
+		description = "When an offer is no longer expected to fill at its price, suggest the better use of its slot: offer more on a buy, or stop buying and sell what it bought; adjust a sell to what buyers pay, or close it and hold if that would mean a loss. You still do every step yourself.",
+		section = suggestionSection,
+		position = 10
+	)
+	default boolean offerUpkeep()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "coinCap",
 		name = "Coins to flip with",
 		description = "The most coins suggestions may use, counting open buy offers. 0 uses all the coins in your inventory.",
@@ -542,6 +554,18 @@ public interface GpGeniusConfig extends Config
 		position = 0
 	)
 	default Notification checkInNotification()
+	{
+		return Notification.ON;
+	}
+
+	@ConfigItem(
+		keyName = "milestoneNotification",
+		name = "Milestone reached",
+		description = "A notification when you reach a new profit milestone (1M up to 10B). Share it from the website dashboard. Hide milestones there if you'd rather not see them.",
+		section = reminderSection,
+		position = 9
+	)
+	default Notification milestoneNotification()
 	{
 		return Notification.ON;
 	}
@@ -807,6 +831,18 @@ public interface GpGeniusConfig extends Config
 		position = 3
 	)
 	default boolean priceChart()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "itemHistoryLine",
+		name = "My history with the item",
+		description = "Under the suggestion, show your own record with that item: flips, profit, win rate, average margin and hold time. The website's dashboard has the full page.",
+		section = trackingSection,
+		position = 4
+	)
+	default boolean itemHistoryLine()
 	{
 		return true;
 	}
