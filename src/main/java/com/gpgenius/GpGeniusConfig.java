@@ -151,35 +151,35 @@ public interface GpGeniusConfig extends Config
 	@ConfigSection(
 		name = "Offer setup",
 		description = "Highlights and hotkeys on the Grand Exchange",
-		position = 3
+		position = 7
 	)
 	String offerSection = "offers";
 
 	@ConfigSection(
 		name = "Tracking",
 		description = "Flip tracking and the side panel",
-		position = 7
+		position = 10
 	)
 	String trackingSection = "tracking";
 
 	@ConfigSection(
 		name = "Highlight look",
 		description = "Colour, size and strength of the next-step highlight. Saved with your profile.",
-		position = 4
+		position = 8
 	)
 	String highlightSection = "highlightLook";
 
 	@ConfigSection(
 		name = "Accessibility",
 		description = "Bigger text, high contrast and sound cues. Saved with your profile.",
-		position = 5
+		position = 9
 	)
 	String accessibilitySection = "accessibility";
 
 	@ConfigSection(
 		name = "Hotkeys",
 		description = "Optional keys for panel actions. All are off until you set them. Kept on this computer only.",
-		position = 8,
+		position = 11,
 		closedByDefault = true
 	)
 	String hotkeySection = "hotkeys";
@@ -187,7 +187,7 @@ public interface GpGeniusConfig extends Config
 	@ConfigSection(
 		name = "Dump alerts",
 		description = "Items just sold far below their usual price (premium)",
-		position = 6
+		position = 4
 	)
 	String alertSection = "alerts";
 
@@ -202,14 +202,14 @@ public interface GpGeniusConfig extends Config
 	@ConfigSection(
 		name = "Check-in reminders",
 		description = "One notification per check-in when your offers need you",
-		position = 2
+		position = 3
 	)
 	String reminderSection = "reminders";
 
 	@ConfigSection(
 		name = "Connection",
 		description = "Where the plugin gets suggestions from",
-		position = 9,
+		position = 12,
 		closedByDefault = true
 	)
 	String connectionSection = "connection";
@@ -1108,7 +1108,7 @@ public interface GpGeniusConfig extends Config
 	@ConfigSection(
 		name = "Slot roles",
 		description = "Opt in: keep your last few GE slots for long, patient flips while the rest flip fast",
-		position = 10,
+		position = 2,
 		closedByDefault = true
 	)
 	String slotRoleSection = "slotRoles";
@@ -1165,7 +1165,7 @@ public interface GpGeniusConfig extends Config
 	@ConfigSection(
 		name = "Sets & decanting",
 		description = "Opt in (premium): armour set and potion decant flips, shown only when they look solid",
-		position = 11,
+		position = 6,
 		closedByDefault = true
 	)
 	String conversionSection = "conversions";
@@ -1209,7 +1209,7 @@ public interface GpGeniusConfig extends Config
 	@ConfigSection(
 		name = "Watchlist",
 		description = "Items to watch with buy and sell target prices. Free: 3 items, premium: up to 100.",
-		position = 12,
+		position = 5,
 		closedByDefault = true
 	)
 	String watchlistSection = "watchlist";
