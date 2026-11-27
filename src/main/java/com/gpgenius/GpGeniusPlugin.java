@@ -1293,17 +1293,28 @@ public class GpGeniusPlugin extends Plugin
 	{
 		// A dump is an instant-buy chance, but it still goes through the one nudge rule: at most a couple
 		// of early reminders per check-in, the rest batched into the next one.
-		String text = String.format("Dump alert: %s is %.0f%% below its usual price.", alert.name, alert.dropPercent);
+		nudge("dump:" + alert.itemId,
+			String.format("Dump alert: %s is %.0f%% below its usual price.", alert.name, alert.dropPercent),
+			true, config.dumpNotification());
+	}
+
+	/**
+	 * Client thread. Every pop-up nudge (dump alerts, watchlist hits, set and decant finds) goes through
+	 * the one nudge rule (NudgeGate): said once, batched into the check-in reminder, and sent early only
+	 * when it may be urgent, early reminders are on, it isn't quiet hours and the GE isn't open.
+	 */
+	private void nudge(String key, String text, boolean mayBeUrgent, Notification sound)
+	{
 		long now = System.currentTimeMillis();
 		boolean quiet = config.quietHours()
 			&& CheckInDigest.inQuietHours(LocalTime.now().getHour(), config.quietStart(), config.quietEnd());
-		com.gpgenius.notify.NudgeGate.Decision d = nudges.offer("dump:" + alert.itemId, config.urgentNudges(), quiet,
+		com.gpgenius.notify.NudgeGate.Decision d = nudges.offer(key, mayBeUrgent && config.urgentNudges(), quiet,
 			now, checkInMinutes() * 60_000L);
 		if (d == com.gpgenius.notify.NudgeGate.Decision.EARLY && !ge.isOpen())
 		{
-			notifier.notify(sounds(config.dumpNotification()), text);
+			notifier.notify(sounds(sound), text);
 		}
-		else if (d == com.gpgenius.notify.NudgeGate.Decision.BATCH)
+		else if (d != com.gpgenius.notify.NudgeGate.Decision.DROP)
 		{
 			digest.note(text, false, now);
 		}
@@ -1319,7 +1330,8 @@ public class GpGeniusPlugin extends Plugin
 	/** Client thread. */
 	private void onWatchHit(String message)
 	{
-		notifier.notify(sounds(config.watchlistNotification()), message);
+		// The player set this price themselves, so it may come early.
+		nudge("watch:" + message, message, true, config.watchlistNotification());
 	}
 
 	/** Client thread. */
@@ -1333,8 +1345,8 @@ public class GpGeniusPlugin extends Plugin
 	/** Client thread. */
 	private void onNewConversion(com.gpgenius.api.Conversions.Opportunity o)
 	{
-		notifier.notify(sounds(config.conversionNotification()), String.format("Set & decant: %s for about %,d gp profit.",
-			o.title, o.profit));
+		nudge("convert:" + o.title, String.format("Set & decant: %s for about %,d gp profit.", o.title, o.profit),
+			false, config.conversionNotification());
 	}
 
 	/** Client thread. */
